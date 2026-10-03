@@ -91,38 +91,43 @@ class RemoteOneApp {
     const toastContainer = document.getElementById('toast-mount-point');
     if (!toastContainer) return;
 
-    let icon = 'ℹ️';
-    let borderColor = '#3b82f6';
-    if (type === 'success') { icon = '✓'; borderColor = '#10b981'; }
-    else if (type === 'danger') { icon = '✗'; borderColor = '#ef4444'; }
-    else if (type === 'warning') { icon = '⚠'; borderColor = '#f59e0b'; }
+    let iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#3b82f6" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>';
+    let borderColor = 'var(--border-hairline)';
+
+    if (type === 'success') {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#10b981" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>';
+      borderColor = 'rgba(16, 185, 129, 0.4)';
+    } else if (type === 'danger') {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ef4444" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="15" y1="9" x2="9" y2="15"/><line x1="9" y1="9" x2="15" y2="15"/></svg>';
+      borderColor = 'rgba(239, 68, 68, 0.4)';
+    } else if (type === 'warning') {
+      iconSvg = '<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#f59e0b" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>';
+      borderColor = 'rgba(245, 158, 11, 0.4)';
+    }
 
     const toast = document.createElement('div');
     toast.className = 'toast-feedback';
     toast.style.borderColor = borderColor;
     toast.innerHTML = `
-      <span class="fs-5">${icon}</span>
-      <div class="small text-white flex-fill">${message}</div>
+      <div class="toast-icon">${iconSvg}</div>
+      <div class="toast-message">${message}</div>
     `;
 
     toastContainer.appendChild(toast);
 
     setTimeout(() => {
       toast.style.opacity = '0';
-      toast.style.transition = 'opacity 0.3s ease';
-      setTimeout(() => toast.remove(), 300);
-    }, 3200);
+      toast.style.transform = 'translateY(-6px)';
+      toast.style.transition = 'opacity 0.25s ease, transform 0.25s ease';
+      setTimeout(() => toast.remove(), 260);
+    }, 3000);
   }
 
   updateDemoBanner() {
     const banner = document.getElementById('demo-mode-banner');
     const settings = StorageManager.getSettings();
     if (banner) {
-      if (settings.demoMode) {
-        banner.classList.remove('d-none');
-      } else {
-        banner.classList.add('d-none');
-      }
+      banner.style.display = settings.demoMode ? 'flex' : 'none';
     }
   }
 

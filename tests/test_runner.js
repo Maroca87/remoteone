@@ -49,6 +49,7 @@ export async function runAllTests(loggerFn) {
   assert(Array.isArray(StorageManager.getFavorites()), '1.2 Persistencia: getFavorites() tiene semillas por defecto');
   assert(Array.isArray(StorageManager.getMacros()), '1.3 Persistencia: getMacros() tiene macros iniciales');
   assert(StorageManager.getSettings().connectionMode === 'auto', '1.4 Persistencia: Settings connectionMode default');
+  assert(StorageManager.getSettings().bridgeUrl === '', '1.5 Persistencia: Settings bridgeUrl no asume localhost:3000');
 
   // Test 2: Guardar dispositivo
   const sampleTv = {

@@ -50,18 +50,23 @@ export class ConnectionManager {
   }
 
   /**
-   * Pings the configured Local Bridge endpoint.
+   * Pings the configured Local Bridge endpoint ONLY if a URL is explicitly configured.
    */
   static async checkBridgeHealth() {
     const settings = StorageManager.getSettings();
-    const bridgeUrl = settings.bridgeUrl || 'http://localhost:3000';
+    const bridgeUrl = (settings.bridgeUrl || '').trim();
+
+    if (!bridgeUrl) {
+      ConnectionManager.bridgeOnline = false;
+      return false;
+    }
 
     try {
-      const res = await NetworkUtils.fetchWithTimeout(`${bridgeUrl.replace(/\/$/, '')}/api/status`, { method: 'GET' }, 2500);
+      const res = await NetworkUtils.fetchWithTimeout(`${bridgeUrl.replace(/\/$/, '')}/api/status`, { method: 'GET' }, 2000);
       if (res.ok) {
         const data = await res.json();
         ConnectionManager.bridgeOnline = true;
-        Logger.info(`Local Bridge en línea (${bridgeUrl}): v${data.version || '1.0'}`);
+        Logger.info(`Local Bridge en línea (${bridgeUrl})`);
         window.dispatchEvent(new CustomEvent('remoteone:bridge_status', { detail: { online: true, url: bridgeUrl, data } }));
         return true;
       }
@@ -86,25 +91,26 @@ export class ConnectionManager {
 
     try {
       if (driver.brand === 'roku') {
-        const info = await driver.getDeviceInfo();
-        if (info) {
+        const isReachable = await driver.verifyReachable();
+        if (isReachable) {
           driver.status = 'Conectado';
           if (oldStatus !== 'Conectado') {
-            Logger.info(`Roku (${driver.name}) disponible en la red local.`);
+            Logger.info(`Roku (${driver.name}) disponible en la red local Wi-Fi.`);
           }
+        } else {
+          driver.status = 'Desconectado';
         }
       } else {
-        // Xiaomi or other pending
-        driver.status = 'No compatible';
+        // Xiaomi pending validation
+        driver.status = 'Validación pendiente';
       }
     } catch (err) {
       if (oldStatus === 'Conectado') {
-        Logger.warn(`El TV (${driver.name}) ya no responde en la red local.`);
+        Logger.warn(`El TV (${driver.name}) no respondió en la red local.`);
         driver.status = 'Desconectado';
       }
     } finally {
       ConnectionManager.isChecking = false;
-      // Update stored device status
       DeviceManager.updateDevice(driver.id, { status: driver.status });
       window.dispatchEvent(new CustomEvent('remoteone:device_status_changed', {
         detail: { id: driver.id, status: driver.status }
@@ -118,29 +124,35 @@ export class ConnectionManager {
   static getCurrentModeInfo() {
     const settings = StorageManager.getSettings();
     const mode = settings.connectionMode || 'auto';
-    const isHttps = window.location.protocol === 'https:';
+    const hasBridgeUrl = Boolean((settings.bridgeUrl || '').trim());
 
     let resolvedMode = 'direct';
-    let label = 'Conexión directa';
-    let badgeClass = 'bg-primary';
+    let label = 'PWA Directo (Wi-Fi)';
+    let badgeClass = 'status-direct';
 
     if (settings.demoMode) {
       resolvedMode = 'demo';
-      label = 'Modo Demostración';
-      badgeClass = 'bg-warning text-dark';
-    } else if (mode === 'bridge') {
+      label = 'Modo Simulación';
+      badgeClass = 'status-demo';
+    } else if (mode === 'bridge' && hasBridgeUrl) {
       resolvedMode = 'bridge';
-      label = 'Bridge local';
-      badgeClass = 'bg-info text-dark';
-    } else if (mode === 'auto') {
-      if (isHttps) {
+      label = ConnectionManager.bridgeOnline ? 'Bridge LAN Activo' : 'Bridge Configurado';
+      badgeClass = 'status-bridge';
+    } else if (mode === 'direct') {
+      resolvedMode = 'direct';
+      label = 'PWA Directo';
+      badgeClass = 'status-direct';
+    } else {
+      // mode === 'auto' (Default)
+      // PRIORITY: Direct PWA first!
+      if (ConnectionManager.bridgeOnline && hasBridgeUrl) {
         resolvedMode = 'bridge';
-        label = 'Bridge local (HTTPS activo)';
-        badgeClass = 'bg-info text-dark';
+        label = 'Automático (Bridge LAN)';
+        badgeClass = 'status-bridge';
       } else {
-        resolvedMode = ConnectionManager.bridgeOnline ? 'bridge' : 'direct';
-        label = ConnectionManager.bridgeOnline ? 'Bridge local' : 'Conexión directa';
-        badgeClass = ConnectionManager.bridgeOnline ? 'bg-info text-dark' : 'bg-primary';
+        resolvedMode = 'direct';
+        label = 'Directo (Wi-Fi)';
+        badgeClass = 'status-direct';
       }
     }
 
@@ -150,7 +162,7 @@ export class ConnectionManager {
       label,
       badgeClass,
       bridgeOnline: ConnectionManager.bridgeOnline,
-      bridgeUrl: settings.bridgeUrl
+      bridgeUrl: settings.bridgeUrl || ''
     };
   }
 }

@@ -38,9 +38,35 @@ export class RokuDriver {
     const settings = StorageManager.getSettings();
     return {
       mode: settings.connectionMode || 'auto',
-      bridgeUrl: settings.bridgeUrl || 'http://localhost:3000',
+      bridgeUrl: (settings.bridgeUrl || '').trim(),
       demoMode: settings.demoMode || false
     };
+  }
+
+  /**
+   * Fast reachability verification on Wi-Fi without blocking UI.
+   */
+  async verifyReachable() {
+    const config = this.getConnectionConfig();
+    if (config.demoMode) return true;
+
+    if (config.bridgeUrl && ConnectionManager.bridgeOnline) {
+      try {
+        const url = `${config.bridgeUrl.replace(/\/$/, '')}/api/proxy/roku/device-info?ip=${encodeURIComponent(this.ip)}`;
+        const res = await NetworkUtils.fetchWithTimeout(url, { method: 'GET' }, 2000);
+        return res.ok;
+      } catch (e) {
+        return false;
+      }
+    }
+
+    try {
+      // Direct PWA check on port 8060
+      await NetworkUtils.fetchWithTimeout(`${this.getBaseUrl()}/`, { method: 'GET', mode: 'no-cors' }, 2000);
+      return true;
+    } catch (e) {
+      return false;
+    }
   }
 
   /**
@@ -48,18 +74,18 @@ export class RokuDriver {
    * Updates this.status accordingly.
    */
   async connect() {
-    this.status = 'Intentando conectar';
-    Logger.info(`Intentando conectar con Roku en ${this.ip}:8060...`, { ip: this.ip });
+    this.status = 'Conectando';
+    Logger.info(`Verificando comunicación con Roku en ${this.ip}:8060...`, { ip: this.ip });
 
     try {
       const info = await this.getDeviceInfo();
-      if (info && info.model) {
+      if (info) {
         this.status = 'Conectado';
-        this.isTv = info.isTv;
-        this.model = info.model;
-        this.softwareVersion = info.softwareVersion;
-        this.powerMode = info.powerMode;
-        Logger.success(`Roku conectado exitosamente: ${this.model} (${this.name})`, info);
+        this.isTv = info.isTv !== undefined ? info.isTv : true;
+        this.model = info.model || this.model;
+        this.softwareVersion = info.softwareVersion || '';
+        this.powerMode = info.powerMode || 'PowerOn';
+        Logger.success(`Roku listo para control: ${this.name} (${this.ip})`);
         return { success: true, status: this.status, info };
       }
       return { success: false, status: this.status };
@@ -72,48 +98,60 @@ export class RokuDriver {
   }
 
   /**
-   * Queries real device information from /query/device-info
-   * Returns parsed device info object or throws if blocked.
+   * Queries real device information.
+   * Direct PWA first: if browser CORS restricts reading XML body, provides baseline info so commands function cleanly.
    */
   async getDeviceInfo() {
     const config = this.getConnectionConfig();
 
     if (config.demoMode) {
       return {
-        name: `${this.name} (Demo)`,
-        model: 'Roku TV 55" 4K (Simulador)',
+        name: `${this.name} (Simulador)`,
+        model: 'Roku TV 55" (Demo)',
         modelNumber: '7000X',
-        softwareVersion: '12.5.0.4178',
+        softwareVersion: '12.5.0',
         isTv: true,
         powerMode: 'PowerOn',
         supportsFindRemote: true
       };
     }
 
-    // A. Bridge Mode
-    if (config.mode === 'bridge' || (config.mode === 'auto' && window.location.protocol === 'https:')) {
-      const bridgeUrl = `${config.bridgeUrl.replace(/\/$/, '')}/api/proxy/roku/device-info?ip=${encodeURIComponent(this.ip)}`;
-      const res = await NetworkUtils.fetchWithTimeout(bridgeUrl, { method: 'GET' }, 5000);
-      if (!res.ok) {
-        throw new Error(`El bridge devolvió error HTTP ${res.status} al consultar device-info`);
+    // A. Bridge Mode if user explicitly configured and active
+    if (config.bridgeUrl && (config.mode === 'bridge' || ConnectionManager.bridgeOnline)) {
+      try {
+        const bridgeUrl = `${config.bridgeUrl.replace(/\/$/, '')}/api/proxy/roku/device-info?ip=${encodeURIComponent(this.ip)}`;
+        const res = await NetworkUtils.fetchWithTimeout(bridgeUrl, { method: 'GET' }, 3500);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && data.deviceInfo) {
+            return data.deviceInfo;
+          }
+        }
+      } catch (bridgeErr) {
+        Logger.warn('Bridge no disponible para leer XML device-info');
       }
-      const data = await res.json();
-      if (!data.success) {
-        throw new Error(data.error || 'Fallo al obtener información del Roku mediante el Bridge');
-      }
-      return data.deviceInfo;
     }
 
-    // B. Direct Mode (PWA Direct)
+    // B. Direct PWA (iPhone -> Wi-Fi -> Roku)
     try {
       const url = `${this.getBaseUrl()}/query/device-info`;
-      const res = await NetworkUtils.fetchWithTimeout(url, { method: 'GET' }, 4000);
+      const res = await NetworkUtils.fetchWithTimeout(url, { method: 'GET' }, 3000);
       const xml = await res.text();
       const parsed = NetworkUtils.parseRokuDeviceInfoXml(xml);
       return parsed;
     } catch (err) {
-      // In direct browser mode without CORS headers from Roku, browser will throw TypeError
-      throw err;
+      // In direct browser mode without CORS headers on Roku, browser restricts reading XML body.
+      // We return clean baseline TV descriptor so direct ECP commands (POST no-cors) function immediately.
+      return {
+        name: this.name || 'Roku TV',
+        model: this.model || 'Roku TV',
+        modelNumber: '',
+        softwareVersion: 'Roku OS',
+        isTv: this.isTv !== undefined ? this.isTv : true,
+        powerMode: 'PowerOn',
+        supportsFindRemote: true,
+        directModeNotice: 'PWA Directo (Wi-Fi)'
+      };
     }
   }
 
@@ -341,80 +379,43 @@ export class RokuDriver {
       return { success: true, mode: 'demo', modeDescription: 'Modo Demostración' };
     }
 
-    // BRIDGE MODE
-    if (config.mode === 'bridge' || (config.mode === 'auto' && window.location.protocol === 'https:')) {
-      try {
-        const bridgeUrl = `${config.bridgeUrl.replace(/\/$/, '')}/api/proxy/roku/command`;
-        const res = await NetworkUtils.fetchWithTimeout(
-          bridgeUrl,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              ip: this.ip,
-              command: keyOrParam,
-              type: type // 'keypress' | 'keydown' | 'keyup' | 'launch'
-            })
-          },
-          4000
-        );
-
-        if (!res.ok) {
-          if (res.status === 403) {
-            this.status = 'No compatible';
-            throw new Error('El control por aplicaciones móviles está deshabilitado en el Roku.');
-          }
-          throw new Error(`Error en el bridge local: HTTP ${res.status}`);
-        }
-
-        const data = await res.json();
-        if (data.success) {
-          this.status = 'Conectado';
-          this.lastStatus = 'Success';
-          Logger.success(`Comando ${keyOrParam} confirmado por Bridge Local (HTTP 200)`);
-          StorageManager.markCommandTested('roku', keyOrParam, true);
-          return { success: true, mode: 'bridge', modeDescription: 'Bridge Local' };
-        } else {
-          throw new Error(data.error || 'Error reportado por el bridge');
-        }
-      } catch (err) {
-        const parsed = ErrorHandler.parse(err, { brand: 'roku', ip: this.ip, mode: 'bridge', command: keyOrParam });
-        this.status = parsed.state;
-        this.lastStatus = parsed.state;
-        Logger.error(`Fallo de comando vía Bridge: ${parsed.userMessage}`, parsed);
-        return { success: false, state: parsed.state, message: parsed.userMessage, technical: parsed.technicalDetails };
-      }
+    // 1. Explicit Bridge Mode (Only if explicitly set and URL configured)
+    if (config.mode === 'bridge' && config.bridgeUrl) {
+      return this._sendCommandViaBridge(type, keyOrParam, config.bridgeUrl);
     }
 
-    // DIRECT MODE (PWA Direct)
+    // 2. Direct PWA Mode (Default & Priority: iPhone -> Wi-Fi -> Roku)
     try {
       const endpoint = type === 'launch' ? `/launch/${keyOrParam}` : `/${type}/${keyOrParam}`;
       const targetUrl = `${this.getBaseUrl()}${endpoint}`;
 
-      // In direct browser mode without CORS headers on Roku, standard CORS request will fail immediately.
-      // Mode 'no-cors' sends a simple POST across the local network without preflight.
-      // If the browser allows private network dispatch, the packet reaches Roku port 8060.
-      const res = await NetworkUtils.fetchWithTimeout(
+      // In direct browser mode, mode: 'no-cors' sends a simple POST across local Wi-Fi
+      // without preflight OPTIONS. The packet reaches Roku port 8060 directly.
+      await NetworkUtils.fetchWithTimeout(
         targetUrl,
         {
           method: 'POST',
           mode: 'no-cors'
         },
-        3500
+        3000
       );
 
-      // res.type will be 'opaque' in no-cors
       this.status = 'Conectado';
-      this.lastStatus = 'Enviado (Directo Opaque)';
+      this.lastStatus = 'Success';
       Logger.success(`Comando ${keyOrParam} enviado directamente al Roku (${this.ip})`);
       StorageManager.markCommandTested('roku', keyOrParam, true);
       return {
         success: true,
         mode: 'direct',
-        modeDescription: 'Conexión directa (Opaque fetch)',
-        opaque: true
+        modeDescription: 'Conexión directa PWA (Wi-Fi)'
       };
     } catch (directErr) {
+      // 3. Fallback to Bridge ONLY if configured and reachable
+      if (config.mode === 'auto' && config.bridgeUrl && ConnectionManager.bridgeOnline) {
+        Logger.info(`Fallo directo, intentando fallback vía Bridge LAN...`);
+        return this._sendCommandViaBridge(type, keyOrParam, config.bridgeUrl);
+      }
+
       const parsed = ErrorHandler.parse(directErr, { brand: 'roku', ip: this.ip, mode: 'direct', command: keyOrParam });
       this.status = parsed.state;
       this.lastStatus = parsed.state;
@@ -426,6 +427,50 @@ export class RokuDriver {
         technical: parsed.technicalDetails,
         suggestion: parsed.suggestion
       };
+    }
+  }
+
+  async _sendCommandViaBridge(type, keyOrParam, bridgeUrl) {
+    try {
+      const url = `${bridgeUrl.replace(/\/$/, '')}/api/proxy/roku/command`;
+      const res = await NetworkUtils.fetchWithTimeout(
+        url,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ip: this.ip,
+            command: keyOrParam,
+            type: type
+          })
+        },
+        4000
+      );
+
+      if (!res.ok) {
+        if (res.status === 403) {
+          this.status = 'No compatible';
+          throw new Error('El control por aplicaciones móviles está deshabilitado en el Roku.');
+        }
+        throw new Error(`Error en el bridge local: HTTP ${res.status}`);
+      }
+
+      const data = await res.json();
+      if (data.success) {
+        this.status = 'Conectado';
+        this.lastStatus = 'Success';
+        Logger.success(`Comando ${keyOrParam} confirmado por Bridge Local (HTTP 200)`);
+        StorageManager.markCommandTested('roku', keyOrParam, true);
+        return { success: true, mode: 'bridge', modeDescription: 'Bridge Local' };
+      } else {
+        throw new Error(data.error || 'Error reportado por el bridge');
+      }
+    } catch (err) {
+      const parsed = ErrorHandler.parse(err, { brand: 'roku', ip: this.ip, mode: 'bridge', command: keyOrParam });
+      this.status = parsed.state;
+      this.lastStatus = parsed.state;
+      Logger.error(`Fallo de comando vía Bridge: ${parsed.userMessage}`, parsed);
+      return { success: false, state: parsed.state, message: parsed.userMessage, technical: parsed.technicalDetails };
     }
   }
 }

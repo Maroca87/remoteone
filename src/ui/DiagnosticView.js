@@ -1,11 +1,13 @@
 /**
  * RemoteOne - DiagnosticView
- * Real-time diagnostic monitor and log exporter for technical debugging.
+ * Clean technical monitor and live telemetry.
+ * Strictly zero emojis, 100% Lucide SVGs, exact telemetry readout.
  */
 
 import { DeviceManager } from '../core/DeviceManager.js';
 import { ConnectionManager } from '../core/ConnectionManager.js';
 import { Logger } from '../utils/Logger.js';
+import { renderIcon } from './Icons.js';
 
 export class DiagnosticView {
   constructor(app) {
@@ -17,81 +19,102 @@ export class DiagnosticView {
     const driver = DeviceManager.getActiveDriver();
     const modeInfo = ConnectionManager.getCurrentModeInfo();
 
+    const isConnected = driver?.status === 'Conectado';
+
     let html = `
       <div class="view-content">
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <!-- Header -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
           <div>
-            <h5 class="fw-bold text-white mb-0">📊 Log de Diagnóstico</h5>
-            <div class="text-muted small">Telemetría en tiempo real y estado técnico</div>
+            <div class="view-title">Diagnóstico Técnico</div>
+            <div class="view-subtitle">Telemetría de conexión y registro de eventos</div>
           </div>
-          <button class="btn btn-primary btn-sm fw-bold px-3" id="btn-copy-diagnostics" style="border-radius: 10px;">
-            📋 Copiar diagnóstico
+          <button class="btn-clean btn-clean-secondary" id="btn-copy-diagnostics" style="width: auto; padding: 6px 12px; font-size: 0.74rem;">
+            ${renderIcon('copy', 14)}
+            <span>Copiar</span>
           </button>
         </div>
 
-        <!-- Diagnostic Summary Card (Requirement 22) -->
-        <div class="card p-3 mb-3" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 16px;">
-          <h6 class="text-white fw-bold mb-3 d-flex align-items-center gap-2">
-            <span>📺</span> Resumen del Dispositivo Activo
-          </h6>
+        <!-- Telemetry Summary Grid matching Requirement 24 -->
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 18px;">
+          <div style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 12px;">
+            ${driver ? driver.name : 'Ningún dispositivo activo'}
+          </div>
 
-          <div class="row g-2 small">
-            <div class="col-6">
-              <span class="text-muted">Device:</span>
-              <div class="fw-bold text-white">${driver ? driver.name : '(Ninguno)'}</div>
-            </div>
-            <div class="col-6">
-              <span class="text-muted">IP:</span>
-              <div class="fw-bold text-white">${driver ? driver.ip : 'N/A'}</div>
-            </div>
-            <div class="col-6">
-              <span class="text-muted">Protocol:</span>
-              <div class="fw-bold text-white">${driver ? driver.protocol : 'N/A'}</div>
-            </div>
-            <div class="col-6">
-              <span class="text-muted">Port:</span>
-              <div class="fw-bold text-white">${driver ? driver.port : 'N/A'}</div>
-            </div>
-            <div class="col-6">
-              <span class="text-muted">Connection:</span>
-              <div>
-                <span class="badge ${driver?.status === 'Conectado' ? 'bg-success' : 'bg-danger'}">
-                  ${driver ? driver.status : 'Disconnected'}
+          <div class="telemetry-grid">
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Conexión</div>
+              <div class="telemetry-item-value" style="display: flex; align-items: center; gap: 6px;">
+                <span class="status-dot ${isConnected ? 'connected' : 'disconnected'}"></span>
+                <span style="color: ${isConnected ? 'var(--status-connected)' : 'var(--text-secondary)'}; font-size: 0.82rem;">
+                  ${driver ? driver.status : 'Desconectado'}
                 </span>
               </div>
             </div>
-            <div class="col-6">
-              <span class="text-muted">Mode:</span>
-              <div class="fw-bold text-info">${modeInfo.label}</div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Dirección IP</div>
+              <div class="telemetry-item-value" style="font-family: monospace; font-size: 0.82rem;">
+                ${driver ? driver.ip : 'N/A'}
+              </div>
             </div>
-            <div class="col-6">
-              <span class="text-muted">Last command:</span>
-              <div class="fw-bold text-warning">${driver?.lastCommand || 'None'}</div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Protocolo</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem;">
+                ${driver ? driver.protocol : 'Roku ECP'}
+              </div>
             </div>
-            <div class="col-6">
-              <span class="text-muted">Status:</span>
-              <div class="fw-bold text-white">${driver?.lastStatus || 'Ready'}</div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Puerto</div>
+              <div class="telemetry-item-value" style="font-family: monospace; font-size: 0.82rem;">
+                ${driver ? driver.port : '8060'}
+              </div>
             </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Último comando</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem; color: var(--accent);">
+                ${driver?.lastCommand || 'Ninguno'}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Última respuesta</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem;">
+                ${driver?.lastStatus || 'En espera'}
+              </div>
+            </div>
+          </div>
+
+          <div style="font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
+            <span>Modo activo:</span>
+            <strong style="color: var(--text-secondary);">${modeInfo.label}</strong>
           </div>
         </div>
 
-        <!-- Live Events Terminal -->
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <span class="text-muted small fw-bold text-uppercase">Registro de Eventos en Vivo</span>
-          <button class="btn btn-link btn-sm text-muted text-decoration-none p-0" id="btn-clear-logs">
-            Limpiar registro
+        <!-- Live Technical Events Terminal -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 8px;">
+          <span style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">
+            Registro de eventos en vivo
+          </span>
+          <button class="btn-clean-subtle" id="btn-clear-logs" style="font-size: 0.7rem; padding: 2px 6px;">
+            Limpiar
           </button>
         </div>
 
-        <div class="diagnostic-terminal" id="diagnostic-log-terminal">
+        <div class="terminal-box" id="diagnostic-log-terminal">
           ${this._renderLogEntries()}
         </div>
 
-        <div class="mt-3 text-center">
-          <button class="btn btn-outline-secondary btn-sm text-white px-4" id="btn-back-to-settings">
-            ← Volver a Ajustes
+        <div style="text-align: center; margin-top: 10px;">
+          <button class="btn-clean btn-clean-secondary" id="btn-back-to-settings" style="width: auto; padding: 8px 18px; margin: 0 auto;">
+            ${renderIcon('arrowLeft', 16)}
+            <span>Volver a Ajustes</span>
           </button>
         </div>
+
       </div>
     `;
 
@@ -102,22 +125,21 @@ export class DiagnosticView {
   _renderLogEntries() {
     const logs = Logger.getHistory();
     if (logs.length === 0) {
-      return '<div class="text-muted text-center py-4">No hay eventos registrados todavía.</div>';
+      return '<div style="color: var(--text-muted); text-align: center; padding: 20px 0;">No hay eventos registrados en la sesión.</div>';
     }
     return logs.map((l) => {
-      let color = '#94a3b8';
+      let color = '#8b9bb4';
       if (l.level === 'SUCCESS') color = '#10b981';
       else if (l.level === 'WARN') color = '#f59e0b';
       else if (l.level === 'ERROR') color = '#ef4444';
       else if (l.level === 'DEBUG') color = '#38bdf8';
 
-      const dataStr = l.data ? `\n   ↳ ${JSON.stringify(l.data)}` : '';
-      return `<div style="margin-bottom: 4px;"><span style="color: #64748b;">[${l.timeFormatted}]</span> <strong style="color: ${color};">[${l.level}]</strong> ${l.message}${dataStr}</div>`;
+      const dataStr = l.data ? `\n  ↳ ${JSON.stringify(l.data)}` : '';
+      return `<div style="margin-bottom: 4px;"><span style="color: #4b586e;">[${l.timeFormatted}]</span> <strong style="color: ${color};">[${l.level}]</strong> ${l.message}${dataStr}</div>`;
     }).join('');
   }
 
   _attachEvents(container, driver, modeInfo) {
-    // Real-time subscriber
     if (this.unsubscribeLogger) this.unsubscribeLogger();
     this.unsubscribeLogger = Logger.subscribe(() => {
       const term = container.querySelector('#diagnostic-log-terminal');
@@ -129,17 +151,18 @@ export class DiagnosticView {
       const report = Logger.exportDiagnostics(driver, modeInfo);
       try {
         await navigator.clipboard.writeText(report);
-        this.app.showToast('¡Diagnóstico copiado al portapapeles!', 'success');
+        this.app.showToast('Diagnóstico copiado al portapapeles', 'success');
       } catch (err) {
-        // Fallback
-        prompt('Copia el reporte de diagnóstico:', report);
+        prompt('Reporte de diagnóstico:', report);
       }
     });
 
     // Clear logs
     container.querySelector('#btn-clear-logs')?.addEventListener('click', () => {
       Logger.clear();
-      this.app.showToast('Registro de logs limpiado.', 'info');
+      const term = container.querySelector('#diagnostic-log-terminal');
+      if (term) term.innerHTML = this._renderLogEntries();
+      this.app.showToast('Registro de eventos limpiado', 'info');
     });
 
     // Back to settings

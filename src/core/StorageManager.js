@@ -17,15 +17,27 @@ export class StorageManager {
    * Initializes storage with defaults if empty.
    */
   static init() {
-    if (!localStorage.getItem(StorageManager.STORAGE_KEYS.SETTINGS)) {
-      const defaultSettings = {
+    let settings = null;
+    try {
+      const raw = localStorage.getItem(StorageManager.STORAGE_KEYS.SETTINGS);
+      if (raw) settings = JSON.parse(raw);
+    } catch (e) {
+      settings = null;
+    }
+
+    if (!settings) {
+      settings = {
         connectionMode: 'auto', // 'auto' | 'direct' | 'bridge'
-        bridgeUrl: 'http://localhost:3000',
+        bridgeUrl: '', // Default empty: No PC or localhost required!
         demoMode: false,
         hapticFeedback: true,
         pollingIntervalSeconds: 30
       };
-      StorageManager.saveSettings(defaultSettings);
+      StorageManager.saveSettings(settings);
+    } else if (settings.bridgeUrl === 'http://localhost:3000') {
+      // Migrate away from broken localhost on mobile phones
+      settings.bridgeUrl = '';
+      StorageManager.saveSettings(settings);
     }
 
     if (!localStorage.getItem(StorageManager.STORAGE_KEYS.DEVICES)) {
@@ -132,9 +144,9 @@ export class StorageManager {
   static getSettings() {
     try {
       const raw = localStorage.getItem(StorageManager.STORAGE_KEYS.SETTINGS);
-      return raw ? JSON.parse(raw) : { connectionMode: 'auto', bridgeUrl: 'http://localhost:3000', demoMode: false };
+      return raw ? JSON.parse(raw) : { connectionMode: 'auto', bridgeUrl: '', demoMode: false };
     } catch (e) {
-      return { connectionMode: 'auto', bridgeUrl: 'http://localhost:3000', demoMode: false };
+      return { connectionMode: 'auto', bridgeUrl: '', demoMode: false };
     }
   }
 

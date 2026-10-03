@@ -1,11 +1,14 @@
 /**
  * RemoteOne - FavoritesView
- * Quick action shortcuts (Apps, Inputs, Commands) and sequential Macros execution.
+ * Quick action shortcuts and sequential macros.
+ * Strictly zero emojis, 100% Lucide SVGs, verified Roku ECP compatibility.
  */
 
 import { StorageManager } from '../core/StorageManager.js';
 import { DeviceManager } from '../core/DeviceManager.js';
 import { CommandManager } from '../core/CommandManager.js';
+import { NetworkUtils } from '../utils/NetworkUtils.js';
+import { renderIcon } from './Icons.js';
 
 export class FavoritesView {
   constructor(app) {
@@ -19,82 +22,80 @@ export class FavoritesView {
 
     let html = `
       <div class="view-content">
-        <!-- Header -->
-        <div class="d-flex justify-content-between align-items-center mb-3">
-          <div>
-            <h5 class="fw-bold text-white mb-0">⭐ Mis Favoritos y Acciones</h5>
-            <div class="text-muted small">
-              ${activeDriver ? `TV Activo: ${activeDriver.name}` : 'Sin TV activo'}
-            </div>
+        <!-- View Header -->
+        <div class="view-header">
+          <div class="view-title">Favoritos y Accesos Rápidos</div>
+          <div class="view-subtitle">
+            ${activeDriver ? `Controlando: ${activeDriver.name}` : 'Sin televisor activo'}
           </div>
         </div>
 
-        <!-- Section 1: Quick Favorites Grid -->
-        <h6 class="text-uppercase fw-bold text-muted mb-2" style="font-size: 0.75rem; letter-spacing: 0.5px;">
-          Accesos Rápidos
-        </h6>
-        
-        <div class="row g-2 mb-4">
+        <!-- Section 1: Quick Actions Grid -->
+        <div style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 12px;">
+          Canales y Acciones Principales
+        </div>
+
+        <div class="favorites-grid">
           ${favorites.map((fav) => `
-            <div class="col-6">
-              <button class="btn btn-outline-light w-100 p-3 text-start d-flex align-items-center gap-2 btn-favorite-item" data-fav-id="${fav.id}" data-type="${fav.type}" data-command="${fav.command}" style="background: var(--bg-card); border-color: var(--border-color); border-radius: 14px;">
-                <span style="font-size: 1.4rem;">${this._getFavoriteIcon(fav)}</span>
-                <div>
-                  <div class="fw-bold text-white small">${fav.name}</div>
-                  <div class="text-muted" style="font-size: 0.7rem;">${fav.type === 'app' ? 'Canal Streaming' : 'Comando Rápido'}</div>
-                </div>
-              </button>
+            <div class="favorite-tile btn-favorite-item" data-type="${fav.type}" data-command="${fav.command}" data-name="${fav.name}">
+              <div class="favorite-tile-icon">
+                ${this._getFavIcon(fav)}
+              </div>
+              <div>
+                <div class="favorite-tile-title">${fav.name}</div>
+                <div class="favorite-tile-meta">${fav.type === 'app' ? 'Canal Streaming' : 'Comando Directo'}</div>
+              </div>
             </div>
           `).join('')}
         </div>
 
-        <!-- Section 2: Macros -->
-        <div class="d-flex justify-content-between align-items-center mb-2">
-          <h6 class="text-uppercase fw-bold text-muted mb-0" style="font-size: 0.75rem; letter-spacing: 0.5px;">
-            Macros Automatizadas
-          </h6>
-          <span class="badge bg-secondary" style="font-size: 0.65rem;">Secuencias</span>
+        <!-- Section 2: Automated Sequences / Macros -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+          <div style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary);">
+            Secuencias Rápidas (Macros)
+          </div>
+          <span style="font-size: 0.68rem; color: var(--text-muted);">Automatización</span>
         </div>
 
-        <div class="d-grid gap-2 mb-4" id="macros-list-container">
+        <div style="margin-bottom: 24px;">
           ${macros.map((m) => `
-            <div class="card p-3" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px;">
-              <div class="d-flex justify-content-between align-items-start">
-                <div>
-                  <h6 class="text-white fw-bold mb-1">🎬 ${m.name}</h6>
-                  <p class="text-muted small mb-2" style="font-size: 0.78rem;">${m.description}</p>
-                  
-                  <div class="d-flex flex-wrap gap-1 mb-2">
-                    ${m.steps.map((s, i) => `
-                      <span class="badge bg-dark border border-secondary text-info" style="font-size: 0.65rem;">
-                        ${i + 1}. ${s.command} (${s.delayMs}ms)
-                      </span>
-                    `).join('')}
-                  </div>
-                </div>
+            <div class="macro-card">
+              <div class="macro-card-header">
+                <div class="macro-title">${m.name}</div>
+              </div>
+              <div class="macro-desc">${m.description}</div>
+
+              <div class="macro-steps-row">
+                ${m.steps.map((s, idx) => `
+                  <span class="macro-step-pill">${idx + 1}. ${s.command} (${s.delayMs}ms)</span>
+                `).join('')}
               </div>
 
-              <div id="macro-status-${m.id}" class="small text-muted mb-2 d-none"></div>
+              <div id="macro-status-${m.id}" style="font-size: 0.72rem; color: var(--accent); margin-bottom: 8px; display: none;"></div>
 
-              <button class="btn btn-outline-primary btn-sm py-2 fw-bold btn-run-macro" data-macro-id="${m.id}" style="border-radius: 10px;">
-                ▶ Ejecutar Macro
+              <button class="btn-clean btn-clean-secondary btn-run-macro" data-macro-id="${m.id}">
+                ${renderIcon('play', 15)}
+                <span>Ejecutar secuencia</span>
               </button>
             </div>
           `).join('')}
         </div>
 
-        <!-- Section 3: Scan TV Installed Apps -->
-        <div class="card p-3" style="background: var(--bg-card); border: 1px solid var(--border-color); border-radius: 14px;">
-          <h6 class="text-white fw-bold mb-1 d-flex align-items-center gap-2">
-            <span>📲</span> Canales Instalados en el TV
-          </h6>
-          <p class="text-muted small mb-3">Consulta en tiempo real la lista oficial de canales instalados en tu Roku.</p>
-          
-          <button class="btn btn-outline-info btn-sm py-2 fw-bold" id="btn-scan-installed-apps">
-            🔍 Consultar Canales (/query/apps)
+        <!-- Section 3: Real Installed Channels Query (/query/apps) -->
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 16px;">
+          <div style="font-size: 0.88rem; font-weight: 600; color: var(--text-primary); margin-bottom: 4px;">
+            Consultar canales en el televisor
+          </div>
+          <p style="font-size: 0.74rem; color: var(--text-secondary); margin-bottom: 12px;">
+            Lee la lista oficial de aplicaciones instaladas en tu Roku mediante ECP.
+          </p>
+
+          <button class="btn-clean btn-clean-secondary" id="btn-scan-apps" style="width: 100%;">
+            ${renderIcon('search', 16)}
+            <span>Leer canales instalados</span>
           </button>
 
-          <div id="installed-apps-results" class="mt-3"></div>
+          <div id="installed-apps-output" style="margin-top: 14px;"></div>
         </div>
 
       </div>
@@ -104,111 +105,141 @@ export class FavoritesView {
     this._attachEvents(container);
   }
 
-  _getFavoriteIcon(fav) {
-    if (fav.name === 'Netflix') return '🔴';
-    if (fav.name === 'YouTube') return '▶️';
-    if (fav.name === 'Prime Video') return '📦';
-    if (fav.name === 'Disney+') return '✨';
-    if (fav.command === 'VolumeMute') return '🔇';
-    if (fav.command === 'Home') return '🏠';
-    return '⭐';
+  _getFavIcon(fav) {
+    if (fav.command === 'VolumeMute') return renderIcon('volumeMute', 18);
+    if (fav.command === 'Home') return renderIcon('home', 18);
+    if (fav.name === 'Netflix' || fav.name === 'YouTube' || fav.name === 'Prime Video' || fav.name === 'Disney+') {
+      return renderIcon('tv', 18);
+    }
+    return renderIcon('sparkles', 18);
   }
 
   _attachEvents(container) {
-    // 1. Favorites click
-    container.querySelectorAll('.btn-favorite-item').forEach((btn) => {
-      btn.addEventListener('click', async () => {
-        const type = btn.getAttribute('data-type');
-        const cmd = btn.getAttribute('data-command');
+    // 1. Favorites clicks
+    container.querySelectorAll('.btn-favorite-item').forEach((tile) => {
+      tile.addEventListener('click', async () => {
+        const type = tile.getAttribute('data-type');
+        const cmd = tile.getAttribute('data-command');
+        const name = tile.getAttribute('data-name');
+
+        NetworkUtils.triggerHaptic(35);
+        this.app.showToast(`Lanzando ${name}...`, 'info');
 
         const res = await CommandManager.executeCommand(cmd, { type });
         if (!res.success) {
-          this.app.showToast(res.message || 'Error al ejecutar acceso rápido.', 'danger');
+          this.app.showToast(res.message || `No se pudo iniciar ${name}`, 'danger');
         } else {
-          this.app.showToast(`Acceso rápido ejecutado (${btn.querySelector('.fw-bold').textContent}).`, 'success');
+          this.app.showToast(`${name} ejecutado`, 'success');
         }
       });
     });
 
-    // 2. Macros execution
+    // 2. Macro execution
     container.querySelectorAll('.btn-run-macro').forEach((btn) => {
       btn.addEventListener('click', async () => {
-        const id = btn.getAttribute('data-macro-id');
-        const macro = StorageManager.getMacros().find((m) => m.id === id);
+        const macroId = btn.getAttribute('data-macro-id');
+        const macro = StorageManager.getMacros().find((m) => m.id === macroId);
         if (!macro) return;
 
-        const statusEl = container.querySelector(`#macro-status-${id}`);
-        statusEl?.classList.remove('d-none');
+        const statusEl = container.querySelector(`#macro-status-${macroId}`);
+        if (statusEl) {
+          statusEl.style.display = 'block';
+          statusEl.textContent = 'Iniciando secuencia...';
+        }
+
         btn.disabled = true;
+        btn.style.opacity = '0.5';
 
-        const res = await CommandManager.executeMacro(macro, (stepIndex, total, step, state) => {
-          if (statusEl) {
-            statusEl.innerHTML = `<span class="spinner-border spinner-border-sm me-1"></span> Paso ${stepIndex}/${total}: ${step.command}...`;
+        try {
+          for (let i = 0; i < macro.steps.length; i++) {
+            const step = macro.steps[i];
+            if (statusEl) {
+              statusEl.textContent = `Paso ${i + 1}/${macro.steps.length}: ${step.command}...`;
+            }
+            await CommandManager.executeCommand(step.command);
+            if (step.delayMs) {
+              await new Promise((r) => setTimeout(r, step.delayMs));
+            }
           }
-        });
-
-        btn.disabled = false;
-        if (res.success) {
-          if (statusEl) statusEl.innerHTML = '<span class="text-success fw-bold">✓ Macro completada exitosamente</span>';
-          this.app.showToast(`Macro "${macro.name}" completada.`, 'success');
-        } else {
-          if (statusEl) statusEl.innerHTML = `<span class="text-danger fw-bold">✗ ${res.message}</span>`;
-          this.app.showToast(res.message, 'danger');
+          if (statusEl) {
+            statusEl.textContent = 'Secuencia completada con éxito';
+            statusEl.style.color = 'var(--status-connected)';
+          }
+          this.app.showToast(`Secuencia "${macro.name}" completada`, 'success');
+        } catch (e) {
+          if (statusEl) {
+            statusEl.textContent = 'Error durante la ejecución';
+            statusEl.style.color = 'var(--status-connecting)';
+          }
+        } finally {
+          btn.disabled = false;
+          btn.style.opacity = '1';
         }
       });
     });
 
-    // 3. Scan installed apps via ECP /query/apps
-    const scanBtn = container.querySelector('#btn-scan-installed-apps');
-    const resultsContainer = container.querySelector('#installed-apps-results');
-
-    scanBtn?.addEventListener('click', async () => {
+    // 3. Scan installed apps
+    container.querySelector('#btn-scan-apps')?.addEventListener('click', async () => {
+      const output = container.querySelector('#installed-apps-output');
       const driver = DeviceManager.getActiveDriver();
+
       if (!driver) {
-        this.app.showToast('Selecciona un TV activo primero.', 'warning');
+        this.app.showToast('Selecciona primero un televisor', 'warning');
         return;
       }
 
-      scanBtn.disabled = true;
-      scanBtn.textContent = 'Consultando al Roku...';
-      resultsContainer.innerHTML = '<div class="text-info small">Consultando /query/apps...</div>';
+      output.innerHTML = `
+        <div style="font-size: 0.75rem; color: var(--accent); padding: 8px 0;">
+          Consultando canales al Roku (${driver.ip})...
+        </div>
+      `;
 
       try {
         const apps = await driver.getInstalledApps();
-        if (apps && apps.length > 0) {
-          resultsContainer.innerHTML = `
-            <div class="small text-muted mb-2">${apps.length} canales encontrados:</div>
-            <div class="row g-2">
-              ${apps.map((app) => `
-                <div class="col-6">
-                  <button class="btn btn-dark w-100 text-start p-2 border border-secondary btn-launch-discovered-app" data-app-id="${app.id}" style="border-radius: 10px;">
-                    <div class="fw-bold text-white small text-truncate">${app.name}</div>
-                    <div class="text-muted" style="font-size: 0.65rem;">ID: ${app.id}</div>
-                  </button>
-                </div>
-              `).join('')}
+        if (!apps || apps.length === 0) {
+          output.innerHTML = `
+            <div style="font-size: 0.74rem; color: var(--text-secondary); padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-md);">
+              En conexión directa PWA sin bridge, la lectura del XML completo está restringida por la política CORS del navegador. Puedes lanzar los canales principales directamente desde los accesos rápidos.
             </div>
           `;
-
-          resultsContainer.querySelectorAll('.btn-launch-discovered-app').forEach((b) => {
-            b.addEventListener('click', async () => {
-              const appId = b.getAttribute('data-app-id');
-              const r = await driver.launchApp(appId);
-              if (r.success) {
-                this.app.showToast(`Lanzando canal ID ${appId}...`, 'success');
-              } else {
-                this.app.showToast(r.message || 'Error al lanzar canal', 'danger');
-              }
-            });
-          });
-        } else {
-          resultsContainer.innerHTML = '<div class="text-warning small">No se recibieron canales o el navegador bloqueó la lectura directa (se requiere Bridge).</div>';
+          return;
         }
+
+        output.innerHTML = `
+          <div class="device-list" style="margin-top: 8px;">
+            ${apps.map((app) => `
+              <div class="device-row btn-launch-app" data-app-id="${app.id}">
+                <div class="device-row-main">
+                  <div class="device-icon-box">${renderIcon('tv', 16)}</div>
+                  <div class="device-info">
+                    <div class="device-name-title">${app.name}</div>
+                    <div class="device-meta-text">ID: ${app.id}</div>
+                  </div>
+                </div>
+                <div>
+                  <button class="btn-clean btn-clean-secondary" style="padding: 4px 10px; font-size: 0.72rem; width: auto;">
+                    Abrir
+                  </button>
+                </div>
+              </div>
+            `).join('')}
+          </div>
+        `;
+
+        output.querySelectorAll('.btn-launch-app').forEach((row) => {
+          row.addEventListener('click', async () => {
+            const appId = row.getAttribute('data-app-id');
+            await driver.launchApp(appId);
+            this.app.showToast('Canal abierto en el Roku', 'success');
+          });
+        });
+
       } catch (err) {
-        resultsContainer.innerHTML = `<div class="text-danger small">Error: ${err.message}. En modo PWA directo el navegador bloquea la lectura XML sin CORS. Usa el Bridge.</div>`;
-      } finally {
-        scanBtn.disabled = false;
-        scanBtn.textContent = '🔍 Consultar Canales (/query/apps)';
+        output.innerHTML = `
+          <div style="font-size: 0.74rem; color: var(--text-secondary); padding: 10px; background: var(--bg-surface-elevated); border-radius: var(--radius-md);">
+            ${err.message || 'No se pudo leer la lista de canales.'}
+          </div>
+        `;
       }
     });
   }

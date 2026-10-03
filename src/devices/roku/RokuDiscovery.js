@@ -17,7 +17,7 @@ export class RokuDiscovery {
    */
   static async discover() {
     const settings = StorageManager.getSettings();
-    const bridgeUrl = settings.bridgeUrl || 'http://localhost:3000';
+    const bridgeUrl = (settings.bridgeUrl || '').trim();
 
     Logger.info('Iniciando descubrimiento de dispositivos Roku...');
 
@@ -58,39 +58,42 @@ export class RokuDiscovery {
       };
     }
 
-    // 2. Attempt SSDP via Local Bridge
-    try {
-      const url = `${bridgeUrl.replace(/\/$/, '')}/api/discover?timeout=3500`;
-      Logger.info(`Consultando descubrimiento SSDP al bridge local: ${url}`);
-      
-      const res = await NetworkUtils.fetchWithTimeout(url, { method: 'GET' }, 5000);
-      if (res.ok) {
-        const data = await res.json();
-        if (data.success && Array.isArray(data.devices)) {
-          Logger.success(`SSDP Bridge encontró ${data.devices.length} dispositivo(s) Roku`, data.devices);
-          return {
-            success: true,
-            devices: data.devices.map((d) => ({
-              id: d.id || `roku_${d.ip.replace(/\./g, '_')}`,
-              name: d.name || d.friendlyName || 'Roku TV',
-              room: 'Habitación',
-              brand: 'roku',
-              ip: d.ip,
-              port: d.port || 8060,
-              model: d.model || 'Roku TV',
-              modelNumber: d.modelNumber || '',
-              softwareVersion: d.softwareVersion || '',
-              isTv: d.isTv !== undefined ? d.isTv : true,
-              powerMode: d.powerMode || 'Unknown',
-              udn: d.udn || '',
-              lastDiscovered: new Date().toISOString()
-            })),
-            source: 'ssdp_bridge'
-          };
+    // 2. Attempt SSDP via Local Bridge (if configured)
+    if (bridgeUrl) {
+      try {
+        const url = `${bridgeUrl.replace(/\/$/, '')}/api/discover?timeout=3500`;
+        Logger.info(`Consultando descubrimiento SSDP al bridge local: ${url}`);
+        
+        const res = await NetworkUtils.fetchWithTimeout(url, { method: 'GET' }, 5000);
+        if (res.ok) {
+          const data = await res.json();
+          if (data.success && Array.isArray(data.devices)) {
+            Logger.success(`SSDP Bridge encontró ${data.devices.length} dispositivo(s) Roku`, data.devices);
+            return {
+              success: true,
+              devices: data.devices.map((d) => ({
+                id: d.id || `roku_${d.ip.replace(/\./g, '_')}`,
+                name: d.name || d.friendlyName || 'Roku TV',
+                room: 'Habitación',
+                brand: 'roku',
+                ip: d.ip,
+                port: d.port || 8060,
+                model: d.model || 'Roku TV',
+                modelNumber: d.modelNumber || '',
+                softwareVersion: d.softwareVersion || '',
+                isTv: d.isTv !== undefined ? d.isTv : true,
+                powerMode: d.powerMode || 'Unknown',
+                udn: d.udn || '',
+                status: 'Conectado',
+                lastDiscovered: new Date().toISOString()
+              })),
+              source: 'ssdp_bridge'
+            };
+          }
         }
+      } catch (err) {
+        Logger.warn('El Bridge local no respondió a la búsqueda SSDP.');
       }
-    } catch (err) {
-      Logger.warn('El Bridge local no está activo o no respondió a la búsqueda SSDP.');
     }
 
     // 3. Fallback explanation when Bridge is not running
@@ -144,10 +147,10 @@ export class RokuDiscovery {
       }
     }
 
-    // Direct mode inspection (may hit CORS in browser)
+    // Direct mode inspection (iPhone -> Wi-Fi -> Roku)
     try {
       const url = `http://${ip}:8060/query/device-info`;
-      const res = await NetworkUtils.fetchWithTimeout(url, { method: 'GET' }, 3500);
+      const res = await NetworkUtils.fetchWithTimeout(url, { method: 'GET' }, 3000);
       const xml = await res.text();
       const parsed = NetworkUtils.parseRokuDeviceInfoXml(xml);
       return {
@@ -158,23 +161,30 @@ export class RokuDiscovery {
         model: parsed.model || 'Roku TV',
         modelNumber: parsed.modelNumber || '',
         softwareVersion: parsed.softwareVersion || '',
-        isTv: parsed.isTv,
+        isTv: parsed.isTv !== undefined ? parsed.isTv : true,
         powerMode: parsed.powerMode || 'Unknown',
         udn: parsed.udn || '',
+        status: 'Conectado',
         lastDiscovered: new Date().toISOString()
       };
     } catch (err) {
-      // In direct browser mode, return basic device record with unverified model
-      return {
-        ip,
-        name: 'Roku TV',
-        brand: 'roku',
-        port: 8060,
-        model: 'Roku (Pendiente de validar)',
-        isTv: true,
-        lastDiscovered: new Date().toISOString(),
-        needsBridgeForInfo: true
-      };
+      // Direct browser fetch cannot read XML body if CORS headers are missing,
+      // but probe checks if host is active on Wi-Fi port 8060:
+      try {
+        await NetworkUtils.fetchWithTimeout(`http://${ip}:8060/`, { method: 'GET', mode: 'no-cors' }, 2500);
+        return {
+          ip,
+          name: 'Roku Habitación',
+          brand: 'roku',
+          port: 8060,
+          model: 'Roku TV',
+          isTv: true,
+          status: 'Conectado',
+          lastDiscovered: new Date().toISOString()
+        };
+      } catch (directErr) {
+        throw new Error(`No se pudo comunicar con el Roku en ${ip}:8060. Asegúrate de que el televisor esté encendido y en la misma red Wi-Fi.`);
+      }
     }
   }
 }

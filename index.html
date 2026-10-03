@@ -3,79 +3,93 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="theme-color" content="#121826">
+  <meta name="theme-color" content="#080a0f">
   <meta name="apple-mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="description" content="RemoteOne - Control remoto móvil para televisores compatibles en la misma red Wi-Fi">
-  <title>RemoteOne - Universal TV Remote</title>
+  <meta name="apple-mobile-web-app-title" content="RemoteOne">
+  <meta name="description" content="RemoteOne - Control preciso de dispositivos desde un solo lugar">
+  <title>RemoteOne — Control Preciso</title>
 
-  <!-- PWA Manifest & Icons -->
+  <!-- PWA Manifest & Vector Icons -->
   <link rel="manifest" href="./manifest.json">
   <link rel="icon" type="image/svg+xml" href="./assets/icons/icon.svg">
   <link rel="apple-touch-icon" href="./assets/icons/icon.svg">
 
-  <!-- Bootstrap 5 CSS -->
-  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
-  
-  <!-- RemoteOne Custom Dark Theme -->
+  <!-- RemoteOne Minimalist Dark Design System -->
   <link rel="stylesheet" href="./css/style.css">
 </head>
 <body>
 
-  <!-- App Wrapper Constrained for Mobile & Desktop -->
+  <!-- App Viewport Wrapper Constrained for Mobile & Desktop -->
   <div id="app-container">
     
-    <!-- Demo Mode Warning Banner (Requirement 29) -->
-    <div id="demo-mode-banner" class="demo-banner d-none">
-      ⚠️ MODO DEMOSTRACIÓN ACTIVO — Los comandos son simulados
+    <!-- Demo Mode Indicator (Discreet & Technical) -->
+    <div id="demo-mode-banner" class="demo-banner" style="display: none;">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      <span>Modo Simulación Activo</span>
     </div>
 
-    <!-- Top Sticky Header -->
-    <header class="app-header d-flex justify-content-between align-items-center">
-      <div class="brand-title">
-        <span>⚡ REMOTEONE</span>
-        <span class="badge-sub bg-primary">v1.0</span>
+    <!-- Minimalist Technological Header -->
+    <header class="app-header">
+      <div class="brand-wrapper">
+        <div class="brand-logo-icon">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="2.5" fill="currentColor"/>
+            <path d="M7.05 16.95a7 7 0 0 1 0-9.9"/>
+            <path d="M16.95 7.05a7 7 0 0 1 0 9.9"/>
+            <path d="M3.5 20.5a12 12 0 0 1 0-17"/>
+            <path d="M20.5 3.5a12 12 0 0 1 0 17"/>
+          </svg>
+        </div>
+        <span class="brand-title-text">RemoteOne</span>
+        <span class="brand-badge">2.0</span>
       </div>
-      <div>
-        <button id="btn-pwa-install" class="btn btn-outline-info btn-sm fw-bold d-none" style="font-size: 0.72rem; border-radius: 8px;">
-          ⬇ Instalar
+      <div class="header-actions">
+        <button id="btn-pwa-install" class="header-btn" style="display: none;" aria-label="Instalar aplicación">
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          <span>Instalar</span>
         </button>
       </div>
     </header>
 
     <!-- Toast Notification Mount Point -->
-    <div id="toast-mount-point"></div>
+    <div id="toast-mount-point" aria-live="polite"></div>
 
     <!-- Dynamic View Mount Point -->
     <main id="view-mount-point" role="main"></main>
 
-    <!-- Fixed Bottom Navigation (Requirement 26) -->
+    <!-- Fixed Ergonomic Bottom Navigation Bar (Zero Emojis, Pure Lucide SVGs) -->
     <nav class="bottom-nav" aria-label="Navegación principal">
       <button class="nav-item-btn active" data-view="home" id="nav-btn-home" aria-label="Inicio">
-        <span style="font-size: 1.25rem;">🏠</span>
-        <span>Inicio</span>
+        <span class="nav-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m3 9 9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+        </span>
+        <span class="nav-label">Inicio</span>
       </button>
 
-      <button class="nav-item-btn" data-view="remote" id="nav-btn-remote" aria-label="Controles">
-        <span style="font-size: 1.25rem;">📺</span>
-        <span>Controles</span>
+      <button class="nav-item-btn" data-view="remote" id="nav-btn-remote" aria-label="Control Remoto">
+        <span class="nav-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect width="10" height="20" x="7" y="2" rx="3"/><circle cx="12" cy="7" r="1.5"/><circle cx="12" cy="12" r="1"/><circle cx="12" cy="16" r="1"/></svg>
+        </span>
+        <span class="nav-label">Control</span>
       </button>
 
       <button class="nav-item-btn" data-view="favorites" id="nav-btn-favorites" aria-label="Favoritos">
-        <span style="font-size: 1.25rem;">⭐</span>
-        <span>Favoritos</span>
+        <span class="nav-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>
+        </span>
+        <span class="nav-label">Favoritos</span>
       </button>
 
       <button class="nav-item-btn" data-view="settings" id="nav-btn-settings" aria-label="Ajustes">
-        <span style="font-size: 1.25rem;">⚙</span>
-        <span>Ajustes</span>
+        <span class="nav-icon">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="21" x2="4" y2="14"/><line x1="4" y1="10" x2="4" y2="3"/><line x1="12" y1="21" x2="12" y2="12"/><line x1="12" y1="8" x2="12" y2="3"/><line x1="20" y1="21" x2="20" y2="16"/><line x1="20" y1="12" x2="20" y2="3"/><line x1="1" y1="14" x2="7" y2="14"/><line x1="9" y1="8" x2="15" y2="8"/><line x1="17" y1="16" x2="23" y2="16"/></svg>
+        </span>
+        <span class="nav-label">Ajustes</span>
       </button>
     </nav>
 
   </div>
-
-  <!-- Bootstrap 5 Bundle JS -->
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
 
   <!-- Main ES Module Application Entrypoint -->
   <script type="module" src="./app.js"></script>

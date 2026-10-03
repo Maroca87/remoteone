@@ -1,51 +1,46 @@
 # Guía de Instalación y Uso de RemoteOne PWA
 
-**RemoteOne** está diseñada con enfoque **Mobile-First**, optimizada para ser utilizada cómodamente con una sola mano desde la pantalla táctil de un teléfono móvil.
+**RemoteOne** está diseñada con enfoque **Mobile-First**, optimizada para ser utilizada cómodamente con una sola mano desde la pantalla táctil de un iPhone o dispositivo Android.
 
 ---
 
-## 1. Instalación en Teléfono Android (Google Chrome)
+## 1. Conexión Directa desde iPhone / iPad (Safari)
+
+RemoteOne está diseñada para funcionar **directamente desde tu iPhone sin depender de una PC**:
+
+1. Conecta tu iPhone a la **misma red Wi-Fi** que tu televisor Roku.
+2. Abre **Safari** y abre la URL de RemoteOne (servida por tu host web o servidor local).
+3. Toca el botón de **Compartir** de Safari (el ícono de un cuadrado con una flecha hacia arriba).
+4. Desplázate hacia abajo y selecciona **"Agregar a pantalla de inicio"** (*Add to Home Screen*).
+5. Confirma tocando **"Agregar"**.
+6. Se creará el acceso directo con el emblema de RemoteOne en tu pantalla principal. Al abrirlo, se ejecutará en modo pantalla completa (*standalone*), con soporte de área segura (*safe-area-insets*) para el notch y el indicador inferior.
+
+---
+
+## 2. Instalación en Teléfono Android (Google Chrome)
 
 1. Conecta tu teléfono a la **misma red Wi-Fi** que tu televisor Roku.
-2. Inicia el servidor de RemoteOne en tu computadora o Raspberry Pi:
-   ```powershell
-   cd C:\Users\Marcos\.gemini\antigravity-ide\scratch\RemoteOne\bridge
-   python bridge.py
-   ```
-3. Observa la IP de tu PC que muestra la consola (ejemplo: `http://192.168.1.45:3000`).
-4. Abre **Google Chrome** en tu teléfono y escribe dicha dirección en la barra de navegación:
-   ```
-   http://192.168.1.45:3000
-   ```
-5. En la parte superior de la aplicación verás el botón **"⬇ Instalar"**, o puedes tocar el menú de Chrome (los 3 puntos verticales arriba a la derecha).
-6. Selecciona **"Agregar a la pantalla principal"** o **"Instalar aplicación"**.
-7. ¡Listo! Se creará un acceso directo en tu teléfono con el ícono de RemoteOne. Al abrirlo, se ejecutará en modo pantalla completa (*standalone*), como una aplicación nativa, ocultando la barra del navegador.
+2. Abre **Google Chrome** y navega a la URL de RemoteOne.
+3. En la parte superior de la aplicación pulsa el botón **"Instalar"**, o en el menú de Chrome (los 3 puntos verticales) selecciona **"Instalar aplicación"** o **"Agregar a pantalla principal"**.
+4. ¡Listo! Se creará el acceso directo para uso a pantalla completa.
 
 ---
 
-## 2. Instalación en iPhone / iPad (Safari)
+## 3. Uso Opcional con Local Bridge
 
-1. Conecta tu dispositivo iOS a la misma Wi-Fi.
-2. Abre **Safari** y navega a `http://<IP-DE-TU-PC>:3000`.
-3. Toca el botón de **Compartir** (el ícono de un cuadrado con una flecha hacia arriba).
-4. Desplázate hacia abajo y selecciona **"Agregar a pantalla de inicio"** (*Add to Home Screen*).
-5. Toca **"Agregar"**. La PWA se abrirá sin los marcos de Safari.
-
----
-
-## 3. Uso en Computadora de Escritorio (Chrome / Edge)
-
-1. Abre `http://localhost:3000` en tu navegador Chrome o Edge.
-2. En la barra de direcciones aparecerá el ícono de instalación de PWA (una pantalla con una flecha hacia abajo).
-3. Haz clic en **"Instalar RemoteOne"** para tenerla como ventana independiente en tu barra de tareas.
+Si decides utilizar el Local Bridge en una computadora o Raspberry Pi para descubrimiento SSDP automático por UDP multicast:
+1. En la máquina host ejecuta: `python bridge/bridge.py`
+2. En tu teléfono ve a **Ajustes ➔ Modo de comunicación**.
+3. Selecciona **Bridge local (Opcional)** e introduce la IP de tu computadora (ejemplo: `http://192.168.1.10:3000`).
+4. Pulsa **Probar** y guarda.
 
 ---
 
 ## 4. Estructura de Navegación Móvil
 
-La aplicación cuenta con una barra de navegación inferior fija adaptada para interacción ergonómica con el pulgar:
+La aplicación cuenta con una barra de navegación inferior minimalista basada en iconos Lucide vectoriales:
 
-* **🏠 Inicio:** Lista de tus televisores, estado en tiempo real, botón para continuar con el último televisor utilizado y botón para agregar o buscar televisores.
-* **📺 Controles:** Mando a distancia táctil adaptado (D-Pad amplio, OK central, Home, Atrás, Volumen, Canales, Silencio, Entradas HDMI y canales directos).
-* **⭐ Favoritos:** Accesos directos a streaming (Netflix, YouTube, etc.) y ejecución de Macros automatizadas (ej. *Modo Película*).
-* **⚙ Ajustes:** Selección de modo (Directo vs Bridge), guía de Roku, modo Demo, matriz de compatibilidad y log de diagnóstico.
+* **Inicio:** Lista limpia de televisores, estado de conexión (Conectado / Desconectado) y botón para escanear red Wi-Fi o agregar por IP.
+* **Control:** Consola de control remoto digital con D-Pad central, SELECT/OK, Back, Home, reproducción y controles de volumen.
+* **Favoritos:** Accesos directos a canales de streaming (Netflix, YouTube, Prime, Disney+) y ejecución de secuencias automatizadas (macros).
+* **Ajustes:** Configuración del modo de comunicación, guía de permisos de Roku OS, diagnóstico y modo simulación.

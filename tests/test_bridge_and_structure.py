@@ -43,6 +43,7 @@ def run_tests():
         "src/devices/xiaomi/XiaomiCommands.js",
         "src/devices/xiaomi/XiaomiDriver.js",
         "src/devices/xiaomi/XiaomiDiscovery.js",
+        "src/ui/Icons.js",
         "src/ui/HomeView.js",
         "src/ui/RemoteView.js",
         "src/ui/DeviceSetupView.js",
@@ -65,6 +66,41 @@ def run_tests():
     for f in required_files:
         if not check_file(f):
             all_exist = False
+
+    # Check that NO emojis exist in any application code or templates
+    print("\n--- Validando Ausencia Total de Emojis en Código UI ---")
+    emoji_chars = ["📺", "🏠", "⭐", "⚙️", "🔍", "📡", "🔴", "🟢", "🎬", "⌨️", "📶", "ℹ️", "⬇", "⚡", "⚠️", "⏻", "▲", "▼", "◀", "▶"]
+    code_files = [
+        "index.html",
+        "app.js",
+        "css/style.css",
+        "src/ui/Icons.js",
+        "src/ui/HomeView.js",
+        "src/ui/RemoteView.js",
+        "src/ui/DeviceSetupView.js",
+        "src/ui/FavoritesView.js",
+        "src/ui/SettingsView.js",
+        "src/ui/DiagnosticView.js",
+        "src/ui/CompatibilityView.js",
+        "src/core/StorageManager.js",
+        "src/core/ConnectionManager.js",
+        "src/devices/roku/RokuDriver.js",
+        "src/devices/roku/RokuDiscovery.js"
+    ]
+
+    has_emoji_error = False
+    for cf in code_files:
+        full_p = os.path.join(BASE_DIR, cf)
+        if os.path.isfile(full_p):
+            with open(full_p, "r", encoding="utf-8") as f_obj:
+                content = f_obj.read()
+                for em in emoji_chars:
+                    if em in content:
+                        print(f"[FAIL] Emoji '{em}' encontrado en {cf}")
+                        has_emoji_error = True
+                        all_exist = False
+    if not has_emoji_error:
+        print("[PASS] Cero emojis encontrados en la interfaz y archivos de código (100% Lucide SVG)")
 
     # Check manifest.json validity
     print("\n--- Validando manifest.json ---")
