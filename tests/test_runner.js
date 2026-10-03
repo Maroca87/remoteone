@@ -136,6 +136,27 @@ export async function runAllTests(loggerFn) {
   const parsedInfo = NetworkUtils.parseRokuDeviceInfoXml(sampleXml);
   assert(parsedInfo.name === 'TCL Roku TV' && parsedInfo.isTv === true, '14. Parser XML de Roku device-info extrae campos correctamente');
 
+  // Test 15: Configurado != Conectado (Regla 1 y 24)
+  const savedDev = StorageManager.getDevice('roku_test_1');
+  const liveDevState = DeviceManager.getDeviceState('roku_test_1');
+  assert(savedDev.configured === true, '15.1 Dispositivo guardado tiene configured: true');
+  assert(savedDev.status !== 'Conectado', '15.2 Dispositivo guardado NO tiene status permanente "Conectado"');
+  assert(typeof liveDevState.networkStatus === 'string', '15.3 Estado de red reside en memoria de runtime separado de almacenamiento');
+
+  // Test 16: Capabilities del Driver (Regla 19)
+  const rokuCaps = nonTvDriver.getCapabilities();
+  assert(rokuCaps.navigation === true && rokuCaps.volume === false, '16.1 Capabilities de Stick: navigation true, volume false');
+  const xiaomiCaps = xiaomiDriver.getCapabilities();
+  assert(xiaomiCaps.navigation === false && xiaomiCaps.volume === false, '16.2 Capabilities de Xiaomi sin emparejar: todo false');
+
+  // Test 17: Power State honesto (Regla 2 y 20)
+  const powerState = await nonTvDriver.getPowerState();
+  assert(powerState === 'unknown' || powerState === 'on', '17. Power State honesto no inventa estado sin evidencia');
+
+  // Test 18: Manual Test Connection de Xiaomi reporta no soportado
+  const xiaomiTest = await xiaomiDriver.testConnection();
+  assert(xiaomiTest.success === false && xiaomiTest.networkStatus === 'unsupported', '18. Test connection de Xiaomi rechaza simulación falsa');
+
   // Restore demoMode off
   StorageManager.saveSettings({ demoMode: false });
 

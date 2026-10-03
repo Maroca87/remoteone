@@ -54,6 +54,25 @@ export class CommandManager {
         result = await driver.sendKeypress(commandName);
     }
 
+    // Record telemetry on driver
+    driver.lastCommand = commandName;
+    driver.lastCommandResult = result.success ? 'Success' : 'Failed';
+    driver.lastChecked = new Date();
+
+    // If command failed due to unreachability, update runtime state
+    if (!result.success && (result.state === 'offline' || result.state === 'unreachable')) {
+      DeviceManager.updateDeviceRuntimeState(driver.id, {
+        networkStatus: 'offline',
+        lastChecked: new Date(),
+        details: result.message || 'No response to command'
+      });
+    } else if (result.success) {
+      DeviceManager.updateDeviceRuntimeState(driver.id, {
+        networkStatus: 'online',
+        lastChecked: new Date()
+      });
+    }
+
     // Broadcast event for UI toast / feedback
     window.dispatchEvent(new CustomEvent('remoteone:command_executed', {
       detail: {

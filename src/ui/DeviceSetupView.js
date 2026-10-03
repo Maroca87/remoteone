@@ -1,379 +1,443 @@
 /**
  * RemoteOne - DeviceSetupView
- * Clean, modern wizard for adding and verifying TV devices.
- * Strictly zero emojis, 100% Lucide SVGs, honest verification step.
+ * Manual device setup workflow with real technical verification.
+ * Follows strict rules:
+ * - Device configured != Device connected
+ * - Test connection performs real protocol probe
+ * - Failed test does NOT save or activate device
+ * - Explicit confirmation required before saving
+ * - Zero emojis, 100% Lucide SVGs, neutral to manufacturers.
  */
 
 import { DeviceManager } from '../core/DeviceManager.js';
-import { DiscoveryManager } from '../core/DiscoveryManager.js';
 import { NetworkUtils } from '../utils/NetworkUtils.js';
-import { StorageManager } from '../core/StorageManager.js';
-import { RokuDriver } from '../devices/roku/RokuDriver.js';
 import { renderIcon } from './Icons.js';
 
 export class DeviceSetupView {
   constructor(app) {
     this.app = app;
-    this.step = 1;
-    this.wizardData = {
+    this.step = 1; // 1: Brand, 2: Form, 3: Testing, 4: Confirmation / Failure
+    this.formData = {
       brand: 'roku',
-      method: 'manual', // 'manual' | 'auto'
+      name: '',
       ip: '',
-      name: 'Roku Habitación',
-      room: 'Habitación',
-      model: 'Roku TV',
-      isTv: true,
-      testResults: null
+      port: 8060,
+      model: ''
     };
+    this.testResult = null;
+    this.isTesting = false;
   }
 
   render(container) {
-    const totalSteps = 5;
+    let contentHtml = '';
+    switch (this.step) {
+      case 1:
+        contentHtml = this._renderStep1Brand();
+        break;
+      case 2:
+        contentHtml = this._renderStep2Form();
+        break;
+      case 3:
+        contentHtml = this._renderStep3Testing();
+        break;
+      case 4:
+        contentHtml = this.testResult?.success
+          ? this._renderStep4Success()
+          : this._renderStep4Failure();
+        break;
+      default:
+        contentHtml = this._renderStep1Brand();
+    }
 
-    let html = `
+    container.innerHTML = `
       <div class="view-content">
-        <!-- Wizard Header Bar -->
-        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 12px;">
+        <!-- Wizard Navigation Bar -->
+        <div style="display: flex; align-items: center; justify-content: space-between; margin-bottom: 16px;">
           <button class="btn-clean-subtle" id="btn-cancel-setup" style="padding: 4px 8px; font-size: 0.78rem;">
             ${renderIcon('x', 14)}
             <span>Cancelar</span>
           </button>
-          <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-secondary);">
-            Paso ${this.step} de ${totalSteps}
+          <span style="font-size: 0.72rem; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em;">
+            ${this._getStepLabel()}
           </span>
         </div>
 
-        <!-- Minimalist Progress Bar -->
-        <div style="height: 3px; background: var(--bg-surface-elevated); border-radius: var(--radius-full); overflow: hidden; margin-bottom: 24px;">
-          <div style="height: 100%; width: ${(this.step / totalSteps) * 100}%; background: var(--accent); transition: width 0.25s ease;"></div>
-        </div>
-
-        <!-- Current Step Container -->
-        <div id="wizard-step-mount">
-          ${this._renderStepContent()}
-        </div>
+        ${contentHtml}
       </div>
     `;
 
-    container.innerHTML = html;
     this._attachEvents(container);
   }
 
-  _renderStepContent() {
+  _getStepLabel() {
     switch (this.step) {
-      case 1: return this._renderStep1Brand();
-      case 2: return this._renderStep2Connection();
-      case 3: return this._renderStep3NameRoom();
-      case 4: return this._renderStep4Test();
-      case 5: return this._renderStep5Success();
+      case 1: return 'Paso 1: Fabricante';
+      case 2: return 'Paso 2: Datos de red';
+      case 3: return 'Paso 3: Verificación';
+      case 4: return this.testResult?.success ? 'Confirmación' : 'Resultado';
       default: return '';
     }
   }
 
-  // Paso 1: Fabricante
+  // 1. Selector de Fabricante / Protocolo (Neutralidad, no solo Roku)
   _renderStep1Brand() {
     const brands = [
-      { id: 'roku', name: 'Roku (Roku TV / Stick)', status: 'Soporte Completo (Prioridad 1)', active: true },
-      { id: 'xiaomi', name: 'Xiaomi TV (Android TV)', status: 'Validación Técnica Pendiente', active: false },
-      { id: 'samsung', name: 'Samsung (Tizen)', status: 'Próximamente', active: false },
-      { id: 'lg', name: 'LG (webOS)', status: 'Próximamente', active: false }
+      { id: 'roku', name: 'Roku', protocol: 'Roku ECP (HTTP)', defaultPort: 8060, status: 'Driver verificado' },
+      { id: 'xiaomi', name: 'Xiaomi TV', protocol: 'Android TV v2 (mTLS)', defaultPort: 6466, status: 'Validación técnica pendiente' },
+      { id: 'samsung', name: 'Samsung Smart TV', protocol: 'Tizen WebSocket', defaultPort: 8001, status: 'Próximamente' },
+      { id: 'lg', name: 'LG webOS TV', protocol: 'webOS WebSocket', defaultPort: 3000, status: 'Próximamente' },
+      { id: 'sony', name: 'Sony BRAVIA', protocol: 'Sony IRCC / REST', defaultPort: 80, status: 'Próximamente' },
+      { id: 'generic', name: 'Otro / Genérico', protocol: 'Protocolo de red local', defaultPort: 80, status: 'Manual' }
     ];
 
     return `
-      <div class="view-title">Selecciona el fabricante</div>
-      <div class="view-subtitle" style="margin-bottom: 18px;">Elige la marca de tu televisor:</div>
+      <div class="view-title">Seleccionar fabricante</div>
+      <div class="view-subtitle" style="margin-bottom: 18px;">
+        Elige el fabricante o protocolo del dispositivo:
+      </div>
 
       <div class="device-list" style="margin-bottom: 24px;">
         ${brands.map((b) => `
-          <div class="device-row btn-select-brand ${this.wizardData.brand === b.id ? 'is-active-device' : ''}" data-brand="${b.id}">
+          <div class="device-row btn-select-brand ${this.formData.brand === b.id ? 'is-active-device' : ''}" data-brand="${b.id}" data-port="${b.defaultPort}">
             <div class="device-row-main">
               <div class="device-icon-box">${renderIcon('tv', 18)}</div>
               <div class="device-info">
                 <div class="device-name-title">${b.name}</div>
                 <div class="device-meta-text">
-                  <span class="status-pill">
-                    <span class="status-dot ${b.active ? 'connected' : 'pending'}"></span>
-                    <span>${b.status}</span>
-                  </span>
+                  <span>${b.protocol}</span>
+                  <span>•</span>
+                  <span style="color: var(--text-muted);">${b.status}</span>
                 </div>
               </div>
             </div>
             <div>
-              <span style="font-size: 0.68rem; font-weight: 600; color: var(--text-muted);">${b.id.toUpperCase()}</span>
+              <span style="font-size: 0.68rem; font-weight: 600; color: var(--text-muted); font-family: monospace;">:${b.defaultPort}</span>
             </div>
           </div>
         `).join('')}
       </div>
 
-      <button class="btn-clean btn-clean-primary" id="btn-step1-next">
+      <button class="btn-clean btn-clean-primary" id="btn-brand-continue">
         <span>Continuar</span>
         ${renderIcon('chevronRight', 16)}
       </button>
     `;
   }
 
-  // Paso 2: Dirección IP / Conexión
-  _renderStep2Connection() {
+  // 2. Formulario: Nombre, IP/Hostname, Puerto, Modelo opcional
+  _renderStep2Form() {
+    const brandLabel = this.formData.brand.charAt(0).toUpperCase() + this.formData.brand.slice(1);
+    const defaultName = this.formData.name || `${brandLabel} TV`;
+
     return `
-      <div class="view-title">Dirección de red</div>
+      <div class="view-title">Configuración del dispositivo</div>
       <div class="view-subtitle" style="margin-bottom: 18px;">
-        Introduce la dirección IP local de tu televisor en tu red Wi-Fi:
+        Introduce los parámetros de red para ${brandLabel}:
       </div>
 
       <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 18px; margin-bottom: 20px;">
-        <label style="font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 8px;">
-          Dirección IPv4 del televisor:
-        </label>
-        <input type="text" id="input-wizard-ip" class="text-input-field" placeholder="192.168.1.50" value="${this.wizardData.ip}" autofocus />
         
-        <div style="margin-top: 12px; padding: 10px 12px; background: var(--bg-surface-elevated); border-radius: var(--radius-sm); font-size: 0.72rem; color: var(--text-secondary); line-height: 1.4;">
-          <strong>¿Cómo encontrarla en tu Roku?</strong><br>
-          En tu control físico ve a: <em>Configuración → Red → Acerca de</em> y consulta el apartado <strong>Dirección IP</strong>.
-        </div>
-      </div>
-
-      <div style="display: flex; gap: 10px;">
-        <button class="btn-clean btn-clean-secondary" id="btn-step2-back" style="flex: 1;">
-          Atrás
-        </button>
-        <button class="btn-clean btn-clean-primary" id="btn-step2-next" style="flex: 1.5;">
-          <span>Continuar</span>
-          ${renderIcon('chevronRight', 16)}
-        </button>
-      </div>
-    `;
-  }
-
-  // Paso 3: Nombre y Ubicación
-  _renderStep3NameRoom() {
-    return `
-      <div class="view-title">Identificación</div>
-      <div class="view-subtitle" style="margin-bottom: 18px;">Personaliza cómo identificarás este televisor:</div>
-
-      <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 18px; margin-bottom: 20px;">
+        <!-- Nombre -->
         <div style="margin-bottom: 14px;">
-          <label style="font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
-            Nombre del televisor:
+          <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
+            Nombre del dispositivo
           </label>
-          <input type="text" id="input-wizard-name" class="text-input-field" value="${this.wizardData.name}" />
+          <input type="text" id="input-setup-name" class="text-input-field" placeholder="Living Room TV" value="${defaultName}" />
         </div>
 
+        <!-- IP / Hostname -->
+        <div style="margin-bottom: 14px;">
+          <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
+            Dirección IP / Hostname local
+          </label>
+          <input type="text" id="input-setup-ip" class="text-input-field" placeholder="192.168.1.50" value="${this.formData.ip}" autofocus />
+          <div style="font-size: 0.70rem; color: var(--text-muted); margin-top: 4px;">
+            El dispositivo debe encontrarse en la misma subred Wi-Fi.
+          </div>
+        </div>
+
+        <!-- Puerto -->
+        <div style="margin-bottom: 14px;">
+          <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
+            Puerto de control
+          </label>
+          <input type="number" id="input-setup-port" class="text-input-field" value="${this.formData.port}" />
+        </div>
+
+        <!-- Modelo (Opcional) -->
         <div>
-          <label style="font-size: 0.76rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
-            Habitación / Ubicación:
+          <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
+            Modelo (Opcional)
           </label>
-          <input type="text" id="input-wizard-room" class="text-input-field" value="${this.wizardData.room}" />
+          <input type="text" id="input-setup-model" class="text-input-field" placeholder="Ej. TCL 55S435 o Smart TV" value="${this.formData.model}" />
         </div>
       </div>
 
       <div style="display: flex; gap: 10px;">
-        <button class="btn-clean btn-clean-secondary" id="btn-step3-back" style="flex: 1;">
+        <button class="btn-clean btn-clean-secondary" id="btn-form-back" style="flex: 1;">
           Atrás
         </button>
-        <button class="btn-clean btn-clean-primary" id="btn-step3-next" style="flex: 1.5;">
+        <button class="btn-clean btn-clean-primary" id="btn-form-test" style="flex: 1.6;">
+          ${renderIcon('wifi', 16)}
           <span>Probar conexión</span>
-          ${renderIcon('chevronRight', 16)}
         </button>
       </div>
     `;
   }
 
-  // Paso 4: Prueba de Conectividad
-  _renderStep4Test() {
+  // 3. Probando conexión en vivo
+  _renderStep3Testing() {
     return `
-      <div class="view-title">Verificación de conectividad</div>
-      <div class="view-subtitle" style="margin-bottom: 16px;">
-        Comprobando comunicación directa con ${this.wizardData.ip}:
-      </div>
-
-      <div id="test-steps-list" style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 20px;">
-        <div style="text-align: center; padding: 20px 0; color: var(--accent);">
+      <div style="text-align: center; padding: 40px 16px;">
+        <div style="width: 52px; height: 52px; border-radius: var(--radius-full); background: rgba(59, 130, 246, 0.1); border: 1px solid rgba(59, 130, 246, 0.25); color: var(--accent); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
           ${renderIcon('refresh', 24)}
-          <div style="font-size: 0.82rem; font-weight: 600; margin-top: 8px;">Iniciando pruebas técnicas...</div>
         </div>
-      </div>
-
-      <div style="display: flex; gap: 10px;">
-        <button class="btn-clean btn-clean-secondary" id="btn-step4-back" style="flex: 1;">
-          Atrás
-        </button>
-        <button class="btn-clean btn-clean-primary" id="btn-step4-next" style="flex: 1.5;" disabled>
-          <span>Continuar</span>
-          ${renderIcon('chevronRight', 16)}
-        </button>
+        <div class="view-title" style="margin-bottom: 6px;">Probando conexión real</div>
+        <p style="font-size: 0.78rem; color: var(--text-secondary); max-width: 290px; margin: 0 auto 20px;">
+          Intentando establecer comunicación con <strong>${this.formData.ip}:${this.formData.port}</strong> mediante el protocolo seleccionado...
+        </p>
+        <div style="font-size: 0.72rem; color: var(--text-muted);">
+          No asumimos que el televisor está disponible sin respuesta técnica.
+        </div>
       </div>
     `;
   }
 
-  // Paso 5: Listo para Controlar
-  _renderStep5Success() {
+  // 4A. Confirmación Explícita tras Prueba Exitosa (Requisito 7 & 21)
+  _renderStep4Success() {
+    const res = this.testResult;
+    const devInfo = res?.device || {};
+    const model = devInfo.model || this.formData.model || 'Smart TV';
+    const protocol = devInfo.protocol || 'Protocolo local';
+    const network = res?.networkStatus || 'Online';
+    const power = res?.powerStatus ? (res.powerStatus === 'on' ? 'Powered On' : (res.powerStatus === 'standby' ? 'Standby' : (res.powerStatus === 'off' ? 'Powered Off' : 'Unknown'))) : 'Unknown';
+
     return `
-      <div style="text-align: center; padding: 30px 10px;">
-        <div style="width: 56px; height: 56px; border-radius: var(--radius-full); background: rgba(16, 185, 129, 0.1); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--status-connected); display: flex; align-items: center; justify-content: center; margin: 0 auto 16px;">
-          ${renderIcon('check', 28)}
+      <div style="text-align: center; padding-top: 10px;">
+        <div style="width: 52px; height: 52px; border-radius: var(--radius-full); background: rgba(16, 185, 129, 0.12); border: 1px solid rgba(16, 185, 129, 0.3); color: var(--status-connected); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+          ${renderIcon('check', 26)}
         </div>
 
-        <div class="view-title">¡Televisor conectado!</div>
-        <p style="font-size: 0.78rem; color: var(--text-secondary); max-width: 280px; margin: 8px auto 24px;">
-          <strong>${this.wizardData.name}</strong> está listo para ser controlado directamente desde tu teléfono.
+        <div class="view-title" style="margin-bottom: 4px;">Dispositivo detectado</div>
+        <p style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 20px;">
+          El televisor respondió correctamente a la prueba técnica.
         </p>
 
-        <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); padding: 14px; text-align: left; margin-bottom: 24px; font-size: 0.74rem;">
-          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span style="color: var(--text-secondary);">Dispositivo:</span>
-            <strong style="color: var(--text-primary);">${this.wizardData.name}</strong>
+        <!-- Spec Sheet -->
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 16px; text-align: left; margin-bottom: 24px; font-size: 0.76rem;">
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Nombre:</span>
+            <strong style="color: var(--text-primary);">${this.formData.name}</strong>
           </div>
-          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
-            <span style="color: var(--text-secondary);">IP:</span>
-            <strong style="font-family: monospace; color: var(--text-primary);">${this.wizardData.ip}</strong>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Fabricante:</span>
+            <strong style="color: var(--text-primary); text-transform: uppercase;">${this.formData.brand}</strong>
           </div>
-          <div style="display: flex; justify-content: space-between;">
-            <span style="color: var(--text-secondary);">Modo:</span>
-            <strong style="color: var(--status-connected);">PWA Directo (Wi-Fi)</strong>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Modelo:</span>
+            <span style="color: var(--text-primary);">${model}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Protocolo:</span>
+            <span style="color: var(--text-primary);">${protocol}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Estado de red:</span>
+            <span class="status-pill">
+              <span class="status-dot connected"></span>
+              <span style="color: var(--status-connected); font-weight: 600;">${network}</span>
+            </span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0;">
+            <span style="color: var(--text-secondary);">Estado de energía:</span>
+            <span style="color: var(--text-secondary);">${power}</span>
           </div>
         </div>
 
-        <button class="btn-clean btn-clean-primary" id="btn-step5-open-remote">
-          ${renderIcon('remote', 18)}
-          <span>Abrir Control Remoto</span>
-        </button>
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-clean btn-clean-secondary" id="btn-confirm-cancel" style="flex: 1;">
+            Cancelar
+          </button>
+          <button class="btn-clean btn-clean-primary" id="btn-confirm-add" style="flex: 1.6;">
+            ${renderIcon('plus', 16)}
+            <span>Agregar dispositivo</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  // 4B. Pantalla de Prueba Fallida (Requisito 6)
+  _renderStep4Failure() {
+    const res = this.testResult;
+    const message = res?.message || 'No se obtuvo respuesta del televisor.';
+    const details = res?.errorType || 'no_response';
+
+    return `
+      <div style="text-align: center; padding-top: 10px;">
+        <div style="width: 52px; height: 52px; border-radius: var(--radius-full); background: rgba(239, 68, 68, 0.1); border: 1px solid rgba(239, 68, 68, 0.3); color: var(--status-disconnected); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+          ${renderIcon('alertCircle', 26)}
+        </div>
+
+        <div class="view-title" style="margin-bottom: 4px;">No se pudo verificar el dispositivo</div>
+        <p style="font-size: 0.76rem; color: var(--text-secondary); max-width: 300px; margin: 0 auto 20px;">
+          ${message}
+        </p>
+
+        <!-- Technical status box -->
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 14px; text-align: left; margin-bottom: 24px; font-size: 0.74rem;">
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-secondary);">Destino:</span>
+            <span style="font-family: monospace; color: var(--text-primary);">${this.formData.ip}:${this.formData.port}</span>
+          </div>
+          <div style="display: flex; justify-content: space-between; margin-bottom: 6px;">
+            <span style="color: var(--text-secondary);">Estado de guardado:</span>
+            <strong style="color: var(--status-disconnected);">No agregado</strong>
+          </div>
+          <div style="display: flex; justify-content: space-between;">
+            <span style="color: var(--text-secondary);">Red:</span>
+            <span style="color: var(--text-secondary);">Offline / Inalcanzable</span>
+          </div>
+        </div>
+
+        <div style="display: flex; gap: 10px;">
+          <button class="btn-clean btn-clean-secondary" id="btn-failure-cancel" style="flex: 1;">
+            Cancelar
+          </button>
+          <button class="btn-clean btn-clean-primary" id="btn-failure-retry" style="flex: 1.6;">
+            ${renderIcon('refresh', 16)}
+            <span>Reintentar</span>
+          </button>
+        </div>
       </div>
     `;
   }
 
   _attachEvents(container) {
+    // Cancel button in top bar
     container.querySelector('#btn-cancel-setup')?.addEventListener('click', () => {
       this.app.navigateTo('home');
     });
 
-    // Step 1
-    container.querySelectorAll('.btn-select-brand').forEach((row) => {
-      row.addEventListener('click', () => {
-        const brand = row.getAttribute('data-brand');
-        if (brand !== 'roku') {
-          this.app.showToast('Xiaomi y otras marcas están en validación técnica', 'warning');
-          return;
-        }
-        this.wizardData.brand = brand;
+    // Step 1: Select Brand
+    container.querySelectorAll('.btn-select-brand').forEach((el) => {
+      el.addEventListener('click', () => {
+        const brand = el.getAttribute('data-brand');
+        const port = parseInt(el.getAttribute('data-port'), 10) || 80;
+        this.formData.brand = brand;
+        this.formData.port = port;
         this.render(container);
       });
     });
 
-    container.querySelector('#btn-step1-next')?.addEventListener('click', () => {
+    container.querySelector('#btn-brand-continue')?.addEventListener('click', () => {
       this.step = 2;
       this.render(container);
     });
 
-    // Step 2
-    container.querySelector('#btn-step2-back')?.addEventListener('click', () => {
+    // Step 2: Form
+    container.querySelector('#btn-form-back')?.addEventListener('click', () => {
       this.step = 1;
       this.render(container);
     });
 
-    container.querySelector('#btn-step2-next')?.addEventListener('click', () => {
-      const ip = container.querySelector('#input-wizard-ip').value.trim();
-      if (!NetworkUtils.isValidIPv4(ip)) {
-        this.app.showToast('Introduce una dirección IPv4 válida (ej. 192.168.1.35)', 'danger');
+    container.querySelector('#btn-form-test')?.addEventListener('click', async () => {
+      const nameInput = container.querySelector('#input-setup-name')?.value.trim();
+      const ipInput = container.querySelector('#input-setup-ip')?.value.trim();
+      const portInput = parseInt(container.querySelector('#input-setup-port')?.value.trim(), 10);
+      const modelInput = container.querySelector('#input-setup-model')?.value.trim();
+
+      if (!ipInput) {
+        this.app.showToast('Introduce una dirección IP o hostname válido', 'danger');
         return;
       }
-      this.wizardData.ip = ip;
+
+      this.formData.name = nameInput || `${this.formData.brand.toUpperCase()} TV`;
+      this.formData.ip = ipInput;
+      this.formData.port = isNaN(portInput) ? 8060 : portInput;
+      this.formData.model = modelInput;
+
+      // Transition to Step 3 (Testing)
       this.step = 3;
       this.render(container);
+
+      // Perform real test
+      await this._executeRealTest(container);
     });
 
-    // Step 3
-    container.querySelector('#btn-step3-back')?.addEventListener('click', () => {
+    // Step 4A: Confirmation Success
+    container.querySelector('#btn-confirm-cancel')?.addEventListener('click', () => {
+      this.app.navigateTo('home');
+    });
+
+    container.querySelector('#btn-confirm-add')?.addEventListener('click', () => {
+      // Requisito 7 & 21: Solo después de pulsar Add device se guarda
+      const devData = {
+        name: this.formData.name,
+        brand: this.formData.brand,
+        ip: this.formData.ip,
+        port: this.formData.port,
+        model: this.testResult?.device?.model || this.formData.model || 'Smart TV',
+        isTv: this.testResult?.device?.isTv !== undefined ? this.testResult.device.isTv : true,
+        networkStatus: this.testResult?.networkStatus || 'online',
+        powerStatus: this.testResult?.powerStatus || 'unknown'
+      };
+
+      const added = DeviceManager.addDevice(devData);
+      DeviceManager.setActiveDevice(added.id);
+
+      this.app.showToast('Dispositivo agregado', 'success');
+      this.app.navigateTo('home');
+    });
+
+    // Step 4B: Failure
+    container.querySelector('#btn-failure-cancel')?.addEventListener('click', () => {
+      this.app.navigateTo('home');
+    });
+
+    container.querySelector('#btn-failure-retry')?.addEventListener('click', () => {
+      // Preserve form data and return to form step
       this.step = 2;
       this.render(container);
     });
-
-    container.querySelector('#btn-step3-next')?.addEventListener('click', () => {
-      const name = container.querySelector('#input-wizard-name').value.trim();
-      const room = container.querySelector('#input-wizard-room').value.trim();
-      if (name) this.wizardData.name = name;
-      if (room) this.wizardData.room = room;
-      this.step = 4;
-      this.render(container);
-      this._runConnectionTest(container);
-    });
-
-    // Step 4 Back & Next
-    container.querySelector('#btn-step4-back')?.addEventListener('click', () => {
-      this.step = 3;
-      this.render(container);
-    });
-
-    container.querySelector('#btn-step4-next')?.addEventListener('click', () => {
-      // Save device
-      const newDev = {
-        id: `roku_${this.wizardData.ip.replace(/\./g, '_')}`,
-        name: this.wizardData.name,
-        room: this.wizardData.room,
-        brand: 'roku',
-        ip: this.wizardData.ip,
-        port: 8060,
-        model: this.wizardData.model || 'Roku TV',
-        isTv: this.wizardData.isTv,
-        status: 'Conectado'
-      };
-
-      StorageManager.saveDevice(newDev);
-      DeviceManager.setActiveDevice(newDev.id);
-      this.step = 5;
-      this.render(container);
-    });
-
-    // Step 5 Open remote
-    container.querySelector('#btn-step5-open-remote')?.addEventListener('click', () => {
-      this.app.navigateTo('remote');
-    });
   }
 
-  async _runConnectionTest(container) {
-    const list = container.querySelector('#test-steps-list');
-    const nextBtn = container.querySelector('#btn-step4-next');
-
-    const tempDriver = new RokuDriver({
-      ip: this.wizardData.ip,
-      name: this.wizardData.name,
-      room: this.wizardData.room,
-      isTv: this.wizardData.isTv
+  async _executeRealTest(container) {
+    // Instantiate temporary driver for probe without adding to storage
+    const tempDriver = DeviceManager.createDriver({
+      name: this.formData.name,
+      brand: this.formData.brand,
+      ip: this.formData.ip,
+      port: this.formData.port,
+      model: this.formData.model
     });
 
-    const result = await tempDriver.testConnection();
+    try {
+      const result = await tempDriver.testConnection();
+      this.testResult = result;
+      this.step = 4;
+      this.render(container);
 
-    let stepsHtml = result.steps.map((s) => {
-      let icon = renderIcon('check', 14);
-      let color = 'var(--status-connected)';
-      if (s.status === 'error') {
-        icon = renderIcon('x', 14);
-        color = '#ef4444';
-      } else if (s.status === 'warning') {
-        icon = renderIcon('info', 14);
-        color = 'var(--status-connecting)';
+      if (result.success) {
+        this.app.showToast('Dispositivo verificado', 'success');
+      } else {
+        this.app.showToast('No se pudo verificar el dispositivo', 'warning');
       }
-
-      return `
-        <div style="display: flex; align-items: flex-start; gap: 10px; padding: 8px 0; border-bottom: 1px solid rgba(255,255,255,0.03);">
-          <div style="color: ${color}; margin-top: 2px;">${icon}</div>
-          <div style="flex: 1;">
-            <div style="font-size: 0.78rem; font-weight: 600; color: var(--text-primary);">${s.name}</div>
-            <div style="font-size: 0.72rem; color: var(--text-secondary); margin-top: 1px;">${s.message}</div>
-          </div>
-        </div>
-      `;
-    }).join('');
-
-    list.innerHTML = stepsHtml;
-
-    if (result.success) {
-      nextBtn.disabled = false;
-      this.wizardData.isTv = tempDriver.isTv;
-      this.wizardData.model = tempDriver.model;
-      this.app.showToast('Prueba de conexión completada con éxito', 'success');
-    } else {
-      nextBtn.disabled = false; // Allow continuing anyway if user desires
-      this.app.showToast('Se completó con advertencias de red', 'warning');
+    } catch (err) {
+      this.testResult = {
+        success: false,
+        networkStatus: 'offline',
+        powerStatus: 'unknown',
+        message: err.message || 'Error de comunicación durante la prueba'
+      };
+      this.step = 4;
+      this.render(container);
+      this.app.showToast('No se pudo verificar el dispositivo', 'danger');
     }
   }
 }

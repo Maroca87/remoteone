@@ -37,6 +37,8 @@ def run_tests():
         "src/core/ConnectionManager.js",
         "src/core/CommandManager.js",
         "src/core/DiscoveryManager.js",
+        "src/devices/BaseDriver.js",
+        "src/devices/generic/GenericDriver.js",
         "src/devices/roku/RokuCommands.js",
         "src/devices/roku/RokuDriver.js",
         "src/devices/roku/RokuDiscovery.js",

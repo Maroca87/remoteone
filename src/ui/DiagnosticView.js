@@ -19,7 +19,8 @@ export class DiagnosticView {
     const driver = DeviceManager.getActiveDriver();
     const modeInfo = ConnectionManager.getCurrentModeInfo();
 
-    const isConnected = driver?.status === 'Conectado';
+    const liveState = driver ? DeviceManager.getDeviceState(driver.id) : null;
+    const isOnline = liveState?.networkStatus === 'online';
 
     let html = `
       <div class="view-content">
@@ -35,7 +36,7 @@ export class DiagnosticView {
           </button>
         </div>
 
-        <!-- Telemetry Summary Grid matching Requirement 24 -->
+        <!-- Telemetry Summary Grid matching Requirement 27 -->
         <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 18px;">
           <div style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 12px;">
             ${driver ? driver.name : 'Ningún dispositivo activo'}
@@ -43,54 +44,63 @@ export class DiagnosticView {
 
           <div class="telemetry-grid">
             <div class="telemetry-item">
-              <div class="telemetry-item-label">Conexión</div>
+              <div class="telemetry-item-label">Device configured</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem; font-weight: 600; color: ${driver ? 'var(--status-connected)' : 'var(--text-muted)'};">
+                ${driver ? 'Yes' : 'No'}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Network</div>
               <div class="telemetry-item-value" style="display: flex; align-items: center; gap: 6px;">
-                <span class="status-dot ${isConnected ? 'connected' : 'disconnected'}"></span>
-                <span style="color: ${isConnected ? 'var(--status-connected)' : 'var(--text-secondary)'}; font-size: 0.82rem;">
-                  ${driver ? driver.status : 'Desconectado'}
+                <span class="status-dot ${isOnline ? 'connected' : (liveState?.networkStatus === 'checking' ? 'connecting' : 'disconnected')}"></span>
+                <span style="color: ${isOnline ? 'var(--status-connected)' : 'var(--text-secondary)'}; font-size: 0.82rem; font-weight: 600;">
+                  ${liveState?.networkStatus ? (liveState.networkStatus.charAt(0).toUpperCase() + liveState.networkStatus.slice(1)) : 'Unknown'}
                 </span>
               </div>
             </div>
 
             <div class="telemetry-item">
-              <div class="telemetry-item-label">Dirección IP</div>
-              <div class="telemetry-item-value" style="font-family: monospace; font-size: 0.82rem;">
-                ${driver ? driver.ip : 'N/A'}
-              </div>
-            </div>
-
-            <div class="telemetry-item">
-              <div class="telemetry-item-label">Protocolo</div>
+              <div class="telemetry-item-label">Power</div>
               <div class="telemetry-item-value" style="font-size: 0.82rem;">
-                ${driver ? driver.protocol : 'Roku ECP'}
+                ${liveState?.powerStatus ? (liveState.powerStatus === 'on' ? 'Powered On' : (liveState.powerStatus === 'standby' ? 'Standby' : (liveState.powerStatus === 'off' ? 'Powered Off' : 'Unknown'))) : 'Unknown'}
               </div>
             </div>
 
             <div class="telemetry-item">
-              <div class="telemetry-item-label">Puerto</div>
-              <div class="telemetry-item-value" style="font-family: monospace; font-size: 0.82rem;">
-                ${driver ? driver.port : '8060'}
+              <div class="telemetry-item-label">Protocol</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem;">
+                ${driver ? driver.protocol : 'N/A'}
               </div>
             </div>
 
             <div class="telemetry-item">
-              <div class="telemetry-item-label">Último comando</div>
+              <div class="telemetry-item-label">Connection method</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem;">
+                ${modeInfo.label}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Last check</div>
+              <div class="telemetry-item-value" style="font-size: 0.78rem; font-family: monospace;">
+                ${liveState?.lastChecked ? new Date(liveState.lastChecked).toLocaleTimeString() : 'Never'}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Last command</div>
               <div class="telemetry-item-value" style="font-size: 0.82rem; color: var(--accent);">
-                ${driver?.lastCommand || 'Ninguno'}
+                ${driver?.lastCommand || 'None'}
               </div>
             </div>
 
             <div class="telemetry-item">
-              <div class="telemetry-item-label">Última respuesta</div>
-              <div class="telemetry-item-value" style="font-size: 0.82rem;">
-                ${driver?.lastStatus || 'En espera'}
+              <div class="telemetry-item-label">Last command result</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem; font-weight: 600; color: ${driver?.lastCommandResult === 'Success' ? 'var(--status-connected)' : (driver?.lastCommandResult === 'Failed' ? 'var(--status-disconnected)' : 'var(--text-secondary)')};">
+                ${driver?.lastCommandResult || 'None'}
               </div>
             </div>
-          </div>
-
-          <div style="font-size: 0.72rem; color: var(--text-muted); display: flex; align-items: center; gap: 6px;">
-            <span>Modo activo:</span>
-            <strong style="color: var(--text-secondary);">${modeInfo.label}</strong>
           </div>
         </div>
 

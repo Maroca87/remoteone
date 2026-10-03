@@ -80,41 +80,19 @@ export class ConnectionManager {
   }
 
   /**
-   * Performs an honest health check of the active device.
+   * Performs an honest health check of the active device using DeviceManager.
    */
   static async checkCurrentDeviceHealth() {
     const driver = DeviceManager.getActiveDriver();
     if (!driver || ConnectionManager.isChecking) return;
 
     ConnectionManager.isChecking = true;
-    const oldStatus = driver.status;
-
     try {
-      if (driver.brand === 'roku') {
-        const isReachable = await driver.verifyReachable();
-        if (isReachable) {
-          driver.status = 'Conectado';
-          if (oldStatus !== 'Conectado') {
-            Logger.info(`Roku (${driver.name}) disponible en la red local Wi-Fi.`);
-          }
-        } else {
-          driver.status = 'Desconectado';
-        }
-      } else {
-        // Xiaomi pending validation
-        driver.status = 'Validación pendiente';
-      }
+      await DeviceManager.checkDeviceState(driver.id, false);
     } catch (err) {
-      if (oldStatus === 'Conectado') {
-        Logger.warn(`El TV (${driver.name}) no respondió en la red local.`);
-        driver.status = 'Desconectado';
-      }
+      Logger.warn(`Verificación de dispositivo fallida: ${err.message}`);
     } finally {
       ConnectionManager.isChecking = false;
-      DeviceManager.updateDevice(driver.id, { status: driver.status });
-      window.dispatchEvent(new CustomEvent('remoteone:device_status_changed', {
-        detail: { id: driver.id, status: driver.status }
-      }));
     }
   }
 

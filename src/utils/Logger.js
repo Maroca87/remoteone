@@ -88,18 +88,19 @@ export class Logger {
     ];
 
     if (activeDevice) {
+      lines.push(`  Dispositivo configurado: ${activeDevice.configured !== false ? 'Sí' : 'No'}`);
       lines.push(`  Nombre: ${activeDevice.name || 'Sin nombre'}`);
-      lines.push(`  Habitación: ${activeDevice.room || 'No asignada'}`);
-      lines.push(`  Marca: ${activeDevice.brand || 'N/A'}`);
-      lines.push(`  IP: ${activeDevice.ip || 'N/A'}`);
-      lines.push(`  Puerto: ${activeDevice.port || 8060}`);
-      lines.push(`  Protocolo: ${activeDevice.protocol || 'Roku ECP'}`);
-      lines.push(`  Modelo: ${activeDevice.model || 'No identificado'}`);
-      lines.push(`  Es TV: ${activeDevice.isTv ? 'Sí (Soporta Volumen/Canales/Power)' : 'No (Stick / Reproductor)'}`);
-      lines.push(`  Versión Software: ${activeDevice.softwareVersion || 'Desconocida'}`);
-      lines.push(`  Estado Actual: ${activeDevice.status || 'Desconocido'}`);
+      lines.push(`  Marca / Fabricante: ${(activeDevice.brand || 'N/A').toUpperCase()}`);
+      lines.push(`  Modelo: ${activeDevice.model || 'No especificado'}`);
+      lines.push(`  Dirección IP: ${activeDevice.ip || 'N/A'}`);
+      lines.push(`  Puerto: ${activeDevice.port || 80}`);
+      lines.push(`  Protocolo: ${activeDevice.protocol || 'Local'}`);
+      lines.push(`  Estado de Red: ${activeDevice.networkStatus || 'Unknown'}`);
+      lines.push(`  Estado de Energía: ${activeDevice.powerStatus || 'Unknown'}`);
+      lines.push(`  Método de Conexión: ${connectionInfo.resolvedMode || connectionInfo.label || 'Direct'}`);
+      lines.push(`  Última Comprobación: ${activeDevice.lastChecked ? new Date(activeDevice.lastChecked).toISOString() : 'Sin verificar'}`);
       lines.push(`  Último Comando: ${activeDevice.lastCommand || 'Ninguno'}`);
-      lines.push(`  Último Resultado: ${activeDevice.lastStatus || 'N/A'}`);
+      lines.push(`  Resultado Último Comando: ${activeDevice.lastCommandResult || 'N/A'}`);
     } else {
       lines.push('  Ningún dispositivo seleccionado.');
     }

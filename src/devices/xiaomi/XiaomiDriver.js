@@ -7,27 +7,54 @@
  * requires TLS client certificate pairing and cannot be operated directly via standard browser fetch.
  */
 
-import { XIAOMI_PROTOCOLS, XIAOMI_ANDROID_KEYCODES } from './XiaomiCommands.js';
+import { BaseDriver } from '../BaseDriver.js';
+import { XIAOMI_PROTOCOLS } from './XiaomiCommands.js';
 import { Logger } from '../../utils/Logger.js';
 
-export class XiaomiDriver {
+export class XiaomiDriver extends BaseDriver {
   constructor(deviceConfig = {}) {
+    super(deviceConfig);
     this.brand = 'xiaomi';
     this.protocol = 'Android TV Remote Protocol v2';
-    this.port = 6466; // TLS pairing/control port
+    this.port = deviceConfig.port || 6466; // TLS pairing/control port
     this.ip = deviceConfig.ip || '';
     this.name = deviceConfig.name || 'Xiaomi TV';
-    this.room = deviceConfig.room || 'Sala';
+    this.room = deviceConfig.room || 'Living Room';
     this.id = deviceConfig.id || `xiaomi_${this.ip.replace(/\./g, '_')}`;
-    this.model = deviceConfig.model || 'Xiaomi TV (Sin identificar)';
+    this.model = deviceConfig.model || 'Xiaomi TV (Pending identification)';
     this.os = deviceConfig.os || 'Android TV / Google TV';
-    this.softwareVersion = deviceConfig.softwareVersion || 'Desconocida';
+    this.softwareVersion = deviceConfig.softwareVersion || 'Unknown';
     this.pairingMethod = 'mTLS Certificate + PIN';
-    this.supportStatus = 'Pendiente de validar';
-    this.status = 'No compatible'; // Reflects real PWA direct state
+    this.supportStatus = 'Validación pendiente';
+    this.status = 'No compatible';
     this.isTv = true;
     this.lastCommand = null;
-    this.lastStatus = 'Requiere mecanismo adicional';
+    this.lastCommandResult = null;
+  }
+
+  getCapabilities() {
+    return {
+      navigation: false,
+      volume: false,
+      mute: false,
+      power: false,
+      input: false,
+      channels: false,
+      textInput: false,
+      appLaunch: false
+    };
+  }
+
+  async verifyReachable() {
+    return {
+      online: false,
+      status: 'unsupported',
+      message: 'Xiaomi Android TV requiere emparejamiento previo por certificados mTLS en TCP 6466.'
+    };
+  }
+
+  async getPowerState() {
+    return 'unsupported';
   }
 
   async connect() {
@@ -36,7 +63,7 @@ export class XiaomiDriver {
     return {
       success: false,
       status: this.status,
-      message: 'Para habilitar el control Xiaomi necesitamos identificar el sistema operativo/modelo del televisor. Este modelo requiere un mecanismo de control adicional (emparejamiento mTLS).'
+      message: 'Para habilitar el control Xiaomi se requiere emparejamiento previo mTLS en puerto 6466.'
     };
   }
 
@@ -54,12 +81,12 @@ export class XiaomiDriver {
 
   async sendKeypress(key) {
     this.lastCommand = key;
-    this.lastStatus = 'No compatible';
-    const message = 'Este modelo requiere un mecanismo de control adicional (emparejamiento Android TV Remote Protocol v2 con certificados mTLS en el Bridge). No se simulará funcionalidad ficticia.';
+    this.lastCommandResult = 'Failed';
+    const message = 'Xiaomi Android TV requiere emparejamiento mTLS previo. No se simula funcionalidad ficticia.';
     Logger.warn(`[Xiaomi TV] Comando ${key} bloqueado: ${message}`);
     return {
       success: false,
-      state: 'No compatible',
+      state: 'unsupported',
       message
     };
   }
@@ -75,7 +102,7 @@ export class XiaomiDriver {
   async sendText(text) {
     return {
       success: false,
-      state: 'No compatible',
+      state: 'unsupported',
       message: 'Entrada de texto para Xiaomi TV requiere sesión autenticada con Android TV Remote.'
     };
   }
@@ -83,26 +110,28 @@ export class XiaomiDriver {
   async launchApp(appId) {
     return {
       success: false,
-      state: 'No compatible',
+      state: 'unsupported',
       message: 'Lanzamiento de apps en Xiaomi TV requiere intents Android autenticados.'
     };
   }
 
   async getStatus() {
-    return this.status;
+    return 'No compatible';
   }
 
   async testConnection() {
     Logger.info(`Probando conexión con Xiaomi TV en ${this.ip}...`);
     return {
       success: false,
-      steps: [
-        { step: 1, name: 'Formato y resolución de IP', status: 'success', message: `IP registrada: ${this.ip}` },
-        { step: 2, name: 'Identificación de Sistema Operativo', status: 'warning', message: `Configurado: ${this.os} (${this.model})` },
-        { step: 3, name: 'Inspección de protocolo de control', status: 'error', message: 'Android TV Remote Protocol v2 requiere mTLS sobre TCP 6466/6467, no soportado directamente desde el navegador web.' },
-        { step: 4, name: 'Envío de comando', status: 'skipped', message: 'Omitido: No se puede enviar comando sin emparejamiento previo.' }
-      ],
-      userNotice: 'Para habilitar el control Xiaomi necesitamos identificar el sistema operativo/modelo del televisor y configurar el servicio de emparejamiento en el bridge.'
+      networkStatus: 'unsupported',
+      powerStatus: 'unsupported',
+      device: {
+        name: this.name,
+        brand: 'xiaomi',
+        protocol: this.protocol,
+        model: this.model
+      },
+      message: 'Dispositivo no soportado directamente desde PWA: Android TV Remote Protocol v2 requiere emparejamiento con certificados mTLS sobre TCP 6466.'
     };
   }
 }
