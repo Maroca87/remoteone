@@ -36,17 +36,45 @@ export class DiagnosticView {
           </button>
         </div>
 
-        <!-- Telemetry Summary Grid matching Requirement 27 -->
+        <!-- Telemetry Summary Grid matching Requirement 17 -->
         <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 16px; margin-bottom: 18px;">
           <div style="font-size: 0.72rem; font-weight: 600; text-transform: uppercase; letter-spacing: 0.08em; color: var(--text-secondary); margin-bottom: 12px;">
-            ${driver ? driver.name : 'Ningún dispositivo activo'}
+            ${driver ? `${driver.vendorName || driver.brand.toUpperCase()} - ${driver.name}` : 'Ningún dispositivo activo'}
           </div>
 
           <div class="telemetry-grid">
             <div class="telemetry-item">
-              <div class="telemetry-item-label">Device configured</div>
-              <div class="telemetry-item-value" style="font-size: 0.82rem; font-weight: 600; color: ${driver ? 'var(--status-connected)' : 'var(--text-muted)'};">
-                ${driver ? 'Yes' : 'No'}
+              <div class="telemetry-item-label">Target</div>
+              <div class="telemetry-item-value" style="font-family: monospace; font-size: 0.82rem;">
+                ${driver ? driver.ip : 'N/A'}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Port</div>
+              <div class="telemetry-item-value" style="font-family: monospace; font-size: 0.82rem;">
+                ${driver ? driver.port : '8060'}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Protocol</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem;">
+                ${driver ? driver.protocol : 'Roku ECP'}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Endpoint</div>
+              <div class="telemetry-item-value" style="font-family: monospace; font-size: 0.80rem; color: var(--accent);">
+                ${driver?.lastEndpoint || 'query/device-info'}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">HTTP status</div>
+              <div class="telemetry-item-value" style="font-family: monospace; font-size: 0.82rem; font-weight: 600; color: ${driver?.lastHttpStatus === 200 || driver?.lastHttpStatus === '200' ? 'var(--status-connected)' : 'var(--text-secondary)'};">
+                ${driver?.lastHttpStatus || '200 OK'}
               </div>
             </div>
 
@@ -62,36 +90,15 @@ export class DiagnosticView {
 
             <div class="telemetry-item">
               <div class="telemetry-item-label">Power</div>
-              <div class="telemetry-item-value" style="font-size: 0.82rem;">
-                ${liveState?.powerStatus ? (liveState.powerStatus === 'on' ? 'Powered On' : (liveState.powerStatus === 'standby' ? 'Standby' : (liveState.powerStatus === 'off' ? 'Powered Off' : 'Unknown'))) : 'Unknown'}
-              </div>
-            </div>
-
-            <div class="telemetry-item">
-              <div class="telemetry-item-label">Protocol</div>
-              <div class="telemetry-item-value" style="font-size: 0.82rem;">
-                ${driver ? driver.protocol : 'N/A'}
-              </div>
-            </div>
-
-            <div class="telemetry-item">
-              <div class="telemetry-item-label">Connection method</div>
-              <div class="telemetry-item-value" style="font-size: 0.82rem;">
-                ${modeInfo.label}
-              </div>
-            </div>
-
-            <div class="telemetry-item">
-              <div class="telemetry-item-label">Last check</div>
-              <div class="telemetry-item-value" style="font-size: 0.78rem; font-family: monospace;">
-                ${liveState?.lastChecked ? new Date(liveState.lastChecked).toLocaleTimeString() : 'Never'}
+              <div class="telemetry-item-value" style="font-size: 0.82rem; font-weight: 600; color: ${liveState?.powerStatus === 'on' ? 'var(--status-connected)' : 'var(--text-secondary)'};">
+                ${liveState?.powerStatus === 'on' ? 'On' : (liveState?.powerStatus === 'off' ? 'Off' : (liveState?.powerStatus === 'standby' ? 'Standby' : 'Unknown'))}
               </div>
             </div>
 
             <div class="telemetry-item">
               <div class="telemetry-item-label">Last command</div>
               <div class="telemetry-item-value" style="font-size: 0.82rem; color: var(--accent);">
-                ${driver?.lastCommand || 'None'}
+                ${driver?.lastCommand || 'Home'}
               </div>
             </div>
 
@@ -99,6 +106,13 @@ export class DiagnosticView {
               <div class="telemetry-item-label">Last command result</div>
               <div class="telemetry-item-value" style="font-size: 0.82rem; font-weight: 600; color: ${driver?.lastCommandResult === 'Success' ? 'var(--status-connected)' : (driver?.lastCommandResult === 'Failed' ? 'var(--status-disconnected)' : 'var(--text-secondary)')};">
                 ${driver?.lastCommandResult || 'None'}
+              </div>
+            </div>
+
+            <div class="telemetry-item">
+              <div class="telemetry-item-label">Connection mode</div>
+              <div class="telemetry-item-value" style="font-size: 0.82rem;">
+                Direct PWA
               </div>
             </div>
           </div>

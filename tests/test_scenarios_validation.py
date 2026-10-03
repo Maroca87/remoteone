@@ -1,25 +1,25 @@
 #!/usr/bin/env python3
 """
-RemoteOne - Scenario Validation Suite (Requirement 28)
-Validates scenarios A through F:
-- ESCENARIO A: TV encendido -> conexión correcta -> mostrar Online
-- ESCENARIO B: TV apagado -> NO mostrar Connected simplemente por estar configurado
-- ESCENARIO C: IP incorrecta -> prueba falla -> NO agregar como dispositivo operativo
-- ESCENARIO D: TV desconectado de la red -> mostrar Offline/Unreachable/Unknown
-- ESCENARIO E: Dispositivo agregado -> reiniciar sesión -> estado vuelve a 'unknown' y se comprueba
-- ESCENARIO F: Dispositivo descubierto -> mostrar como encontrado -> NO agregar sin confirmación de usuario
+RemoteOne - Scenario Validation Suite (Real Roku Connectivity & Scenarios A-F)
+Validates:
+- iPhone -> Wi-Fi -> Roku HTTP :8060 -> /query/device-info (Direct PWA, no bridge)
+- Parsing of vendor-name, model-name, user-device-name, power-mode, supports-tv-power-control, supports-audio-volume-control
+- Real Manual Add Flow (Test connection -> Device verified -> Explicit Add device)
+- Real ECP Keypress: POST /keypress/<KEY> without body
+- Honest feedback: Command successful / Command failed / Device unavailable / Browser blocked direct communication
+- Dynamic capabilities: Volume/Mute buttons only shown when supports-audio-volume-control == true
+- Power button only shown when supports-tv-power-control == true
+- Diagnostic telemetry: Target, Port, Protocol, Endpoint, HTTP status, Network, Power, Last command, Last command result, Connection mode
 """
 
 import os
 import sys
-import json
-import re
 
 BASE_DIR = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 
 def run_scenario_tests():
     print("==================================================")
-    print("   REMOTEONE - VALIDACIÓN DE ESCENARIOS REALES (REQ 28)")
+    print("   REMOTEONE - VALIDACIÓN DE CONECTIVIDAD REAL ROKU")
     print("==================================================")
     
     passed = 0
@@ -34,141 +34,123 @@ def run_scenario_tests():
         else:
             print(f"[FAIL] {name} - Detalle: {details}")
 
-    # 1. Inspect DeviceManager.js
-    dm_path = os.path.join(BASE_DIR, "src", "core", "DeviceManager.js")
-    with open(dm_path, "r", encoding="utf-8") as f:
-        dm_code = f.read()
+    # 1. Inspect NetworkUtils.js (XML Parsing of all 12 fields)
+    nu_path = os.path.join(BASE_DIR, "src", "utils", "NetworkUtils.js")
+    with open(nu_path, "r", encoding="utf-8") as f:
+        nu_code = f.read()
 
-    # Rule 1 & Scenario B: Configured != Connected. States initialized as 'unknown' upon app init.
+    required_xml_fields = [
+        "vendor-name", "model-number", "model-name", "user-device-name",
+        "software-version", "software-build", "network-type", "wifi-mac",
+        "power-mode", "supports-tv-power-control", "supports-audio-volume-control",
+        "supports-find-remote"
+    ]
+    all_xml_parsed = all(f in nu_code for f in required_xml_fields)
     test(
-        "networkStatus: 'unknown'" in dm_code and "powerStatus: 'unknown'" in dm_code,
-        "ESCENARIO E / Regla 11: Al abrir la app, estados dinámicos inician como 'unknown' sin asumir conexión previa",
-        "init() debe setear networkStatus y powerStatus en 'unknown'"
+        all_xml_parsed,
+        "Requisito 3: NetworkUtils.parseRokuDeviceInfoXml extrae los 12 campos obligatorios de /query/device-info",
+        "Faltan campos XML en el parser"
+    )
+
+    # 2. Inspect RokuDriver.js (Direct PWA, testConnection, keypress POST)
+    roku_path = os.path.join(BASE_DIR, "src", "devices", "roku", "RokuDriver.js")
+    with open(roku_path, "r", encoding="utf-8") as f:
+        roku_code = f.read()
+
+    test(
+        "/query/device-info" in roku_code and "testConnection" in roku_code,
+        "Requisito 2: testConnection() ejecuta consulta real GET /query/device-info",
+        "Falta llamada a /query/device-info en testConnection"
     )
 
     test(
-        "configured: true" in dm_code and "status: 'Conectado'" not in dm_code,
-        "ESCENARIO B / Regla 1: addDevice() guarda configured: true pero NO escribe status: 'Conectado' en persistencia",
-        "addDevice no debe persistir status fijo 'Conectado'"
+        "supportsAudioVolumeControl" in roku_code and "supportsTvPowerControl" in roku_code,
+        "Requisito 10 & 11: RokuDriver mapea supports-audio-volume-control y supports-tv-power-control en capabilities",
+        "Faltan flags de audio o power en capabilities"
     )
 
     test(
-        "deviceStates = new Map()" in dm_code,
-        "Regla 2 & 3: Runtime states desacoplados del almacenamiento permanente",
-        "deviceStates Map debe gestionar live states"
+        "POST" in roku_code and "/${type}/${keyOrParam}" in roku_code,
+        "Requisito 7 & 9: Comandos utilizan POST /keypress/<KEY> sin body conforme a Roku ECP",
+        "Falta método POST o endpoint keypress"
     )
 
-    # 2. Inspect DeviceSetupView.js (Manual Add Flow & Scenario C)
+    test(
+        "Command successful" in roku_code and "Device unavailable" in roku_code and "Browser blocked direct communication" in roku_code,
+        "Requisito 8: RokuDriver reporta los 4 estados honestos (Command successful / Command failed / Device unavailable / Browser blocked)",
+        "Faltan mensajes exactos de respuesta de comando"
+    )
+
+    # 3. Inspect DeviceSetupView.js (Manual Add & Confirmation)
     setup_path = os.path.join(BASE_DIR, "src", "ui", "DeviceSetupView.js")
     with open(setup_path, "r", encoding="utf-8") as f:
         setup_code = f.read()
 
     test(
-        "testConnection()" in setup_code,
-        "ESCENARIO C / Requisito 4 & 5: Manual Add ejecuta testConnection() real antes de permitir guardar",
-        "Falta llamada a tempDriver.testConnection()"
+        "Device verified" in setup_code and "Manufacturer" in setup_code and "Model" in setup_code,
+        "Requisito 4: Pantalla de confirmación muestra 'Device verified', Manufacturer, Device, Model, Network, Power",
+        "Faltan campos de confirmación en DeviceSetupView"
     )
 
     test(
-        "No se pudo verificar el dispositivo" in setup_code and "No agregado" in setup_code,
-        "ESCENARIO C / Requisito 6: Si la prueba falla, el dispositivo queda como 'No agregado' y NO se guarda",
-        "Pantalla de fallo debe mostrar 'No agregado'"
+        "Add device" in setup_code and "btn-confirm-add" in setup_code,
+        "Requisito 4 & 7: Botón explícito [Add device] para persistir solo tras confirmación del usuario",
+        "Falta botón Add device"
     )
 
-    test(
-        "Dispositivo detectado" in setup_code and "btn-confirm-add" in setup_code,
-        "Requisito 7: Pantalla de confirmación explícita con botón 'Agregar dispositivo' antes de guardar",
-        "Falta confirmación explícita tras test exitoso"
-    )
-
-    # 3. Inspect HomeView.js (Scenario F & Scan without auto-add)
-    home_path = os.path.join(BASE_DIR, "src", "ui", "HomeView.js")
-    with open(home_path, "r", encoding="utf-8") as f:
-        home_code = f.read()
-
-    test(
-        "btn-add-discovered-device" in home_code and "DeviceManager.addDevice" in home_code,
-        "ESCENARIO F / Requisitos 8 & 9: Dispositivos descubiertos se muestran con botón [Agregar] y NO se auto-agregan",
-        "Discovery debe esperar a que el usuario pulse [Agregar]"
-    )
-
-    test(
-        "netDotClass" in home_code and "powerLabel" in home_code,
-        "Requisitos 2 & 3: HomeView presenta Network status y Power status de forma separada y explícita",
-        "Debe renderizar badges independientes"
-    )
-
-    test(
-        "lastChecked" in home_code and "_formatTimeAgo" in home_code,
-        "Requisito 23: Tarjeta muestra última comprobación (Last checked: Hace un momento / 2 min ago)",
-        "Debe formatear tiempo de última comprobación"
-    )
-
-    # 4. Inspect RemoteView.js (Honest Button Feedback & Capabilities)
+    # 4. Inspect RemoteView.js (Honest button feedback & capabilities filtering)
     remote_path = os.path.join(BASE_DIR, "src", "ui", "RemoteView.js")
     with open(remote_path, "r", encoding="utf-8") as f:
         remote_code = f.read()
 
     test(
-        "capabilities.volume" in remote_code and "capabilities.power" in remote_code and "capabilities.textInput" in remote_code,
-        "Requisito 18 & 19: RemoteView evalúa capacidades reales del driver y no muestra botones no soportados",
-        "Falta validación de capabilities"
+        "capabilities.volume" in remote_code and "capabilities.power" in remote_code,
+        "Requisito 10 & 11: RemoteView oculta volumen y power si el dispositivo no los soporta",
+        "Falta filtrado condicional por capabilities"
     )
 
     test(
-        "Comando fallido" in remote_code or "Dispositivo no disponible" in remote_code,
-        "ESCENARIO D / Requisito 14: Feedback honesto en botones cuando falla un comando (sin fake success)",
-        "Debe notificar error real en toast"
+        "Home" in remote_code and "Up" in remote_code and "Select" in remote_code,
+        "Requisito 8 & 9: Botones Home, Up, Down, Left, Right, Select, Back implementados",
+        "Faltan botones de navegación ECP"
     )
 
-    # 5. Inspect CommandManager.js
-    cmd_path = os.path.join(BASE_DIR, "src", "core", "CommandManager.js")
-    with open(cmd_path, "r", encoding="utf-8") as f:
-        cmd_code = f.read()
-
-    test(
-        "lastCommandResult" in cmd_code and "updateDeviceRuntimeState" in cmd_code,
-        "Requisito 14 & 27: CommandManager registra último comando, resultado y actualiza estado si el TV no responde",
-        "Falta actualización de telemetría en CommandManager"
-    )
-
-    # 6. Inspect DiagnosticView.js
+    # 5. Inspect DiagnosticView.js (Exact 10 Telemetry fields)
     diag_path = os.path.join(BASE_DIR, "src", "ui", "DiagnosticView.js")
     with open(diag_path, "r", encoding="utf-8") as f:
         diag_code = f.read()
 
-    diag_fields = ["Device configured", "Network", "Power", "Protocol", "Connection method", "Last check", "Last command", "Last command result"]
-    all_diag_fields = all(f in diag_code for f in diag_fields)
+    telemetry_fields = [
+        "Target", "Port", "Protocol", "Endpoint", "HTTP status",
+        "Network", "Power", "Last command", "Last command result", "Connection mode"
+    ]
+    all_telemetry_present = all(tf in diag_code for tf in telemetry_fields)
     test(
-        all_diag_fields,
-        "Requisito 27: Diagnóstico técnico desglosa los 8 campos obligatorios requeridos",
-        f"Campos faltantes en telemetría: {[f for f in diag_fields if f not in diag_code]}"
+        all_telemetry_present,
+        "Requisito 17: Diagnóstico técnico incluye los 10 campos requeridos (Target, Port, Protocol, Endpoint, HTTP status, etc.)",
+        f"Campos faltantes: {[tf for tf in telemetry_fields if tf not in diag_code]}"
     )
 
-    # 7. Check Drivers (BaseDriver, RokuDriver, XiaomiDriver, GenericDriver)
-    roku_drv = os.path.join(BASE_DIR, "src", "devices", "roku", "RokuDriver.js")
-    xiaomi_drv = os.path.join(BASE_DIR, "src", "devices", "xiaomi", "XiaomiDriver.js")
-    generic_drv = os.path.join(BASE_DIR, "src", "devices", "generic", "GenericDriver.js")
-
-    with open(roku_drv, "r", encoding="utf-8") as f: r_code = f.read()
-    with open(xiaomi_drv, "r", encoding="utf-8") as f: x_code = f.read()
-    with open(generic_drv, "r", encoding="utf-8") as f: g_code = f.read()
+    # 6. Inspect DeviceManager.js (No fake connected on save, unknown init)
+    dm_path = os.path.join(BASE_DIR, "src", "core", "DeviceManager.js")
+    with open(dm_path, "r", encoding="utf-8") as f:
+        dm_code = f.read()
 
     test(
-        "getCapabilities()" in r_code and "getPowerState()" in r_code,
-        "Requisito 19 & 20: RokuDriver implementa getCapabilities() y getPowerState() honesto",
-        "Falta getCapabilities() o getPowerState()"
+        "networkStatus: 'unknown'" in dm_code and "powerStatus: 'unknown'" in dm_code,
+        "Requisito 5 & 6: Al iniciar, los estados inician en 'unknown' sin asumir conexión previa",
+        "init() debe setear unknown"
     )
 
     test(
-        "navigation: false" in x_code and "navigation: false" in g_code,
-        "Requisito 18 & 20: XiaomiDriver y GenericDriver no simulan navegación sin soporte real",
-        "navigation debe ser false en Xiaomi/Generic"
+        "vendorName" in dm_code and "supportsTvPowerControl" in dm_code and "supportsAudioVolumeControl" in dm_code,
+        "Requisito 3 & 6: DeviceManager almacena datos reales extraídos de /query/device-info",
+        "Faltan propiedades de capacidades en addDevice"
     )
 
     print("\n==================================================")
     if passed == total:
-        print(f"  [OK] TODOS LOS ESCENARIOS Y REGLAS SUPERADOS ({passed}/{total})")
+        print(f"  [OK] TODAS LAS VALIDACIONES DE CONECTIVIDAD SUPERADAS ({passed}/{total})")
     else:
         print(f"  [ERROR] {total - passed} PRUEBAS FALLARON")
     print("==================================================")

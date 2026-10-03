@@ -84,13 +84,17 @@ export class NetworkUtils {
 
   /**
    * Helper to parse XML string into a key-value object (for Roku device-info).
+   * Extracts vendor-name, model-number, model-name, user-device-name, software-version,
+   * software-build, network-type, wifi-mac, power-mode, supports-tv-power-control,
+   * supports-audio-volume-control, and supports-find-remote.
    * @param {string} xmlString 
    * @returns {Object}
    */
   static parseRokuDeviceInfoXml(xmlString) {
     const result = {
       rawXml: xmlString,
-      isTv: false
+      isTv: true,
+      powerMode: 'Unknown'
     };
 
     if (!xmlString || typeof xmlString !== 'string') return result;
@@ -101,27 +105,45 @@ export class NetworkUtils {
       const root = doc.querySelector('device-info');
       if (!root) return result;
 
-      // Extract child nodes
+      // Extract all child tags
       for (const child of root.children) {
         const key = child.tagName;
         const val = child.textContent.trim();
         result[key] = val;
       }
 
-      // Convert common fields to friendly names
-      result.name = result['user-device-name'] || result['friendly-device-name'] || result['default-device-name'] || 'Roku Device';
-      result.model = result['model-name'] || result['model-number'] || 'Roku';
+      // Explicitly extract the required fields (Requirement 3)
+      result.vendorName = result['vendor-name'] || result['custom-device-name'] || '';
       result.modelNumber = result['model-number'] || '';
+      result.modelName = result['model-name'] || '';
+      result.userDeviceName = result['user-device-name'] || result['friendly-device-name'] || result['default-device-name'] || '';
       result.softwareVersion = result['software-version'] || '';
-      result.isTv = (result['is-tv'] || '').toLowerCase() === 'true';
-      result.isStick = (result['is-stick'] || '').toLowerCase() === 'true';
-      result.powerMode = result['power-mode'] || 'Unknown';
-      result.supportsFindRemote = (result['supports-find-remote'] || '').toLowerCase() === 'true';
-      result.wifiMac = result['wifi-mac'] || '';
-      result.ethernetMac = result['ethernet-mac'] || '';
+      result.softwareBuild = result['software-build'] || '';
       result.networkType = result['network-type'] || 'wifi';
-      result.udn = result['udn'] || '';
-      result.serialNumber = result['serial-number'] || '';
+      result.wifiMac = result['wifi-mac'] || '';
+      result.powerMode = result['power-mode'] || 'Unknown';
+      result.supportsTvPowerControl = (result['supports-tv-power-control'] || '').toLowerCase() === 'true';
+      result.supportsAudioVolumeControl = (result['supports-audio-volume-control'] || '').toLowerCase() === 'true';
+      result.supportsFindRemote = (result['supports-find-remote'] || '').toLowerCase() === 'true';
+
+      // Computed convenience properties
+      result.manufacturer = result.vendorName || 'Roku';
+      result.name = result.userDeviceName || result['friendly-device-name'] || 'Roku TV';
+      result.model = result.modelName || result.modelNumber || 'Roku';
+      result.isTv = result.supportsTvPowerControl || (result['is-tv'] || '').toLowerCase() === 'true';
+      result.isStick = (result['is-stick'] || '').toLowerCase() === 'true';
+
+      // Power state translation
+      const pm = (result.powerMode || '').toLowerCase();
+      if (pm === 'poweron') {
+        result.powerStatus = 'on';
+      } else if (pm === 'displayoff' || pm === 'headless') {
+        result.powerStatus = 'standby';
+      } else if (pm === 'poweroff') {
+        result.powerStatus = 'off';
+      } else {
+        result.powerStatus = 'unknown';
+      }
     } catch (err) {
       console.warn('Failed to parse Roku XML:', err);
     }

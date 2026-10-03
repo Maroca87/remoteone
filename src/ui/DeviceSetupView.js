@@ -126,13 +126,16 @@ export class DeviceSetupView {
 
   // 2. Formulario: Nombre, IP/Hostname, Puerto, Modelo opcional
   _renderStep2Form() {
-    const brandLabel = this.formData.brand.charAt(0).toUpperCase() + this.formData.brand.slice(1);
-    const defaultName = this.formData.name || `${brandLabel} TV`;
+    const isRoku = this.formData.brand === 'roku';
+    const defaultPlaceholderIp = isRoku ? '192.168.100.116' : '192.168.1.50';
+    const defaultPlaceholderName = isRoku ? 'TV cuarto' : 'Living Room TV';
+    const defaultName = this.formData.name || (isRoku ? 'TV cuarto' : `${this.formData.brand.toUpperCase()} TV`);
+    const port = this.formData.port || (isRoku ? 8060 : 80);
 
     return `
       <div class="view-title">Configuración del dispositivo</div>
       <div class="view-subtitle" style="margin-bottom: 18px;">
-        Introduce los parámetros de red para ${brandLabel}:
+        Introduce los parámetros de red para ${this.formData.brand.toUpperCase()}:
       </div>
 
       <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 18px; margin-bottom: 20px;">
@@ -140,36 +143,36 @@ export class DeviceSetupView {
         <!-- Nombre -->
         <div style="margin-bottom: 14px;">
           <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
-            Nombre del dispositivo
+            Name
           </label>
-          <input type="text" id="input-setup-name" class="text-input-field" placeholder="Living Room TV" value="${defaultName}" />
+          <input type="text" id="input-setup-name" class="text-input-field" placeholder="${defaultPlaceholderName}" value="${defaultName}" />
         </div>
 
-        <!-- IP / Hostname -->
+        <!-- IP Address -->
         <div style="margin-bottom: 14px;">
           <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
-            Dirección IP / Hostname local
+            IP Address
           </label>
-          <input type="text" id="input-setup-ip" class="text-input-field" placeholder="192.168.1.50" value="${this.formData.ip}" autofocus />
+          <input type="text" id="input-setup-ip" class="text-input-field" placeholder="${defaultPlaceholderIp}" value="${this.formData.ip}" autofocus />
           <div style="font-size: 0.70rem; color: var(--text-muted); margin-top: 4px;">
-            El dispositivo debe encontrarse en la misma subred Wi-Fi.
+            El dispositivo debe encontrarse en la misma red Wi-Fi que este teléfono.
           </div>
         </div>
 
         <!-- Puerto -->
         <div style="margin-bottom: 14px;">
           <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
-            Puerto de control
+            Port
           </label>
-          <input type="number" id="input-setup-port" class="text-input-field" value="${this.formData.port}" />
+          <input type="number" id="input-setup-port" class="text-input-field" value="${port}" />
         </div>
 
         <!-- Modelo (Opcional) -->
         <div>
           <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 6px;">
-            Modelo (Opcional)
+            Model (Opcional)
           </label>
-          <input type="text" id="input-setup-model" class="text-input-field" placeholder="Ej. TCL 55S435 o Smart TV" value="${this.formData.model}" />
+          <input type="text" id="input-setup-model" class="text-input-field" placeholder="${isRoku ? 'KD23X' : 'Ej. Smart TV'}" value="${this.formData.model}" />
         </div>
       </div>
 
@@ -179,7 +182,7 @@ export class DeviceSetupView {
         </button>
         <button class="btn-clean btn-clean-primary" id="btn-form-test" style="flex: 1.6;">
           ${renderIcon('wifi', 16)}
-          <span>Probar conexión</span>
+          <span>Test connection</span>
         </button>
       </div>
     `;
@@ -194,23 +197,25 @@ export class DeviceSetupView {
         </div>
         <div class="view-title" style="margin-bottom: 6px;">Probando conexión real</div>
         <p style="font-size: 0.78rem; color: var(--text-secondary); max-width: 290px; margin: 0 auto 20px;">
-          Intentando establecer comunicación con <strong>${this.formData.ip}:${this.formData.port}</strong> mediante el protocolo seleccionado...
+          Consultando <strong>http://${this.formData.ip}:${this.formData.port}/query/device-info</strong>...
         </p>
         <div style="font-size: 0.72rem; color: var(--text-muted);">
-          No asumimos que el televisor está disponible sin respuesta técnica.
+          Obteniendo capacidades reales por protocolo HTTP ECP.
         </div>
       </div>
     `;
   }
 
-  // 4A. Confirmación Explícita tras Prueba Exitosa (Requisito 7 & 21)
+  // 4A. Confirmación Explícita tras Prueba Exitosa (Requisito 4 & 7)
   _renderStep4Success() {
     const res = this.testResult;
     const devInfo = res?.device || {};
-    const model = devInfo.model || this.formData.model || 'Smart TV';
-    const protocol = devInfo.protocol || 'Protocolo local';
-    const network = res?.networkStatus || 'Online';
-    const power = res?.powerStatus ? (res.powerStatus === 'on' ? 'Powered On' : (res.powerStatus === 'standby' ? 'Standby' : (res.powerStatus === 'off' ? 'Powered Off' : 'Unknown'))) : 'Unknown';
+    const manufacturer = devInfo.vendorName || (this.formData.brand || '').toUpperCase();
+    const deviceName = devInfo.name || this.formData.name || 'TV cuarto';
+    const model = devInfo.model || this.formData.model || 'KD23X';
+    const protocol = devInfo.protocol || 'Roku ECP';
+    const network = res?.networkStatus === 'online' ? 'Online' : (res?.networkStatus || 'Online');
+    const power = res?.powerStatus === 'on' ? 'On' : (res?.powerStatus === 'standby' ? 'Standby' : (res?.powerStatus === 'off' ? 'Off' : 'Unknown'));
 
     return `
       <div style="text-align: center; padding-top: 10px;">
@@ -218,54 +223,54 @@ export class DeviceSetupView {
           ${renderIcon('check', 26)}
         </div>
 
-        <div class="view-title" style="margin-bottom: 4px;">Dispositivo detectado</div>
+        <div class="view-title" style="margin-bottom: 4px;">Device verified</div>
         <p style="font-size: 0.76rem; color: var(--text-secondary); margin-bottom: 20px;">
           El televisor respondió correctamente a la prueba técnica.
         </p>
 
-        <!-- Spec Sheet -->
+        <!-- Spec Sheet matching Requirement 4 -->
         <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 16px; text-align: left; margin-bottom: 24px; font-size: 0.76rem;">
           <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
-            <span style="color: var(--text-secondary);">Nombre:</span>
-            <strong style="color: var(--text-primary);">${this.formData.name}</strong>
+            <span style="color: var(--text-secondary);">Manufacturer</span>
+            <strong style="color: var(--text-primary); text-transform: uppercase;">${manufacturer}</strong>
           </div>
 
           <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
-            <span style="color: var(--text-secondary);">Fabricante:</span>
-            <strong style="color: var(--text-primary); text-transform: uppercase;">${this.formData.brand}</strong>
+            <span style="color: var(--text-secondary);">Device</span>
+            <strong style="color: var(--text-primary);">${deviceName}</strong>
           </div>
 
           <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
-            <span style="color: var(--text-secondary);">Modelo:</span>
+            <span style="color: var(--text-secondary);">Model</span>
             <span style="color: var(--text-primary);">${model}</span>
           </div>
 
           <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
-            <span style="color: var(--text-secondary);">Protocolo:</span>
-            <span style="color: var(--text-primary);">${protocol}</span>
-          </div>
-
-          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
-            <span style="color: var(--text-secondary);">Estado de red:</span>
+            <span style="color: var(--text-secondary);">Network</span>
             <span class="status-pill">
               <span class="status-dot connected"></span>
               <span style="color: var(--status-connected); font-weight: 600;">${network}</span>
             </span>
           </div>
 
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Power</span>
+            <span style="color: ${power === 'On' ? 'var(--status-connected)' : 'var(--text-secondary)'}; font-weight: 600;">${power}</span>
+          </div>
+
           <div style="display: flex; justify-content: space-between; padding: 6px 0;">
-            <span style="color: var(--text-secondary);">Estado de energía:</span>
-            <span style="color: var(--text-secondary);">${power}</span>
+            <span style="color: var(--text-secondary);">Protocol</span>
+            <span style="color: var(--text-primary); font-family: monospace;">${protocol}</span>
           </div>
         </div>
 
         <div style="display: flex; gap: 10px;">
           <button class="btn-clean btn-clean-secondary" id="btn-confirm-cancel" style="flex: 1;">
-            Cancelar
+            Cancel
           </button>
           <button class="btn-clean btn-clean-primary" id="btn-confirm-add" style="flex: 1.6;">
             ${renderIcon('plus', 16)}
-            <span>Agregar dispositivo</span>
+            <span>Add device</span>
           </button>
         </div>
       </div>
@@ -376,14 +381,24 @@ export class DeviceSetupView {
     });
 
     container.querySelector('#btn-confirm-add')?.addEventListener('click', () => {
-      // Requisito 7 & 21: Solo después de pulsar Add device se guarda
+      const dev = this.testResult?.device || {};
       const devData = {
-        name: this.formData.name,
+        name: dev.name || this.formData.name,
         brand: this.formData.brand,
+        vendorName: dev.vendorName || '',
         ip: this.formData.ip,
         port: this.formData.port,
-        model: this.testResult?.device?.model || this.formData.model || 'Smart TV',
-        isTv: this.testResult?.device?.isTv !== undefined ? this.testResult.device.isTv : true,
+        model: dev.model || this.formData.model || 'Smart TV',
+        modelNumber: dev.modelNumber || '',
+        softwareVersion: dev.softwareVersion || '',
+        softwareBuild: dev.softwareBuild || '',
+        networkType: dev.networkType || 'wifi',
+        wifiMac: dev.wifiMac || '',
+        powerMode: dev.powerMode || 'Unknown',
+        supportsTvPowerControl: dev.supportsTvPowerControl !== undefined ? dev.supportsTvPowerControl : true,
+        supportsAudioVolumeControl: dev.supportsAudioVolumeControl !== undefined ? dev.supportsAudioVolumeControl : true,
+        supportsFindRemote: dev.supportsFindRemote || false,
+        isTv: dev.isTv !== undefined ? dev.isTv : true,
         networkStatus: this.testResult?.networkStatus || 'online',
         powerStatus: this.testResult?.powerStatus || 'unknown'
       };
