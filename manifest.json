@@ -1,0 +1,19 @@
+{
+  "name": "Universal TV Remote - RemoteOne",
+  "short_name": "TV Remote",
+  "description": "Control remoto universal para televisores compatibles en la red local Wi-Fi",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0a0d14",
+  "theme_color": "#121826",
+  "icons": [
+    {
+      "src": "./assets/icons/icon.svg",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

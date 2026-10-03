@@ -1,0 +1,22 @@
+{
+  "name": "remoteone-local-bridge",
+  "version": "1.0.0",
+  "description": "Local Wi-Fi Bridge for RemoteOne PWA to bypass browser CORS and provide native SSDP discovery",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "node-ssdp": "^4.0.1"
+  },
+  "keywords": [
+    "remoteone",
+    "roku",
+    "ecp",
+    "pwa",
+    "bridge",
+    "local-network"
+  ],
+  "author": "RemoteOne Team",
+  "license": "MIT"
+}

@@ -1,0 +1,65 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "title": "RemoteOneConfig",
+  "description": "Ejemplo de configuración de entorno y dispositivos para RemoteOne",
+  "settings": {
+    "connectionMode": "auto",
+    "bridgeUrl": "http://localhost:3000",
+    "demoMode": false,
+    "hapticFeedback": true,
+    "pollingIntervalSeconds": 30
+  },
+  "devices": [
+    {
+      "id": "roku_bedroom_sample",
+      "name": "Roku Habitación",
+      "room": "Habitación",
+      "brand": "roku",
+      "ip": "192.168.1.50",
+      "port": 8060,
+      "protocol": "Roku ECP",
+      "model": "TCL Roku TV 50\"",
+      "modelNumber": "50S435",
+      "softwareVersion": "12.5.0",
+      "isTv": true,
+      "powerMode": "PowerOn",
+      "createdAt": "2026-10-03T08:00:00.000Z"
+    },
+    {
+      "id": "xiaomi_living_sample",
+      "name": "Xiaomi Sala",
+      "room": "Sala",
+      "brand": "xiaomi",
+      "ip": "192.168.1.60",
+      "port": 6466,
+      "protocol": "Android TV Remote Protocol v2",
+      "model": "Xiaomi Smart TV A 55\"",
+      "isTv": true,
+      "status": "No compatible",
+      "pairingMethod": "mTLS Certificate + PIN",
+      "notes": "Requiere servicio mTLS en Bridge Local. No simular funcionalidad ficticia."
+    }
+  ],
+  "favorites": [
+    { "id": "12", "name": "Netflix", "brand": "roku", "type": "app", "command": "12" },
+    { "id": "837", "name": "YouTube", "brand": "roku", "type": "app", "command": "837" },
+    { "id": "13", "name": "Prime Video", "brand": "roku", "type": "app", "command": "13" },
+    { "id": "291097", "name": "Disney+", "brand": "roku", "type": "app", "command": "291097" },
+    { "id": "cmd_mute", "name": "Mute", "brand": "all", "type": "command", "command": "VolumeMute" },
+    { "id": "cmd_home", "name": "Home", "brand": "all", "type": "command", "command": "Home" }
+  ],
+  "macros": [
+    {
+      "id": "macro_movie_mode",
+      "name": "Modo Película",
+      "description": "Enciende el televisor, va a inicio, cambia a HDMI 1 y baja el volumen",
+      "steps": [
+        { "command": "PowerOn", "delayMs": 1200, "requiresTv": true },
+        { "command": "Home", "delayMs": 600, "requiresTv": false },
+        { "command": "InputHDMI1", "delayMs": 600, "requiresTv": true },
+        { "command": "VolumeDown", "delayMs": 300, "requiresTv": true },
+        { "command": "VolumeDown", "delayMs": 300, "requiresTv": true }
+      ]
+    }
+  ]
+}

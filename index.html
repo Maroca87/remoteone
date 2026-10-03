@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="theme-color" content="#121826">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="description" content="RemoteOne - Control remoto móvil para televisores compatibles en la misma red Wi-Fi">
+  <title>RemoteOne - Universal TV Remote</title>
+
+  <!-- PWA Manifest & Icons -->
+  <link rel="manifest" href="./manifest.json">
+  <link rel="icon" type="image/svg+xml" href="./assets/icons/icon.svg">
+  <link rel="apple-touch-icon" href="./assets/icons/icon.svg">
+
+  <!-- Bootstrap 5 CSS -->
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css">
+  
+  <!-- RemoteOne Custom Dark Theme -->
+  <link rel="stylesheet" href="./css/style.css">
+</head>
+<body>
+
+  <!-- App Wrapper Constrained for Mobile & Desktop -->
+  <div id="app-container">
+    
+    <!-- Demo Mode Warning Banner (Requirement 29) -->
+    <div id="demo-mode-banner" class="demo-banner d-none">
+      ⚠️ MODO DEMOSTRACIÓN ACTIVO — Los comandos son simulados
+    </div>
+
+    <!-- Top Sticky Header -->
+    <header class="app-header d-flex justify-content-between align-items-center">
+      <div class="brand-title">
+        <span>⚡ REMOTEONE</span>
+        <span class="badge-sub bg-primary">v1.0</span>
+      </div>
+      <div>
+        <button id="btn-pwa-install" class="btn btn-outline-info btn-sm fw-bold d-none" style="font-size: 0.72rem; border-radius: 8px;">
+          ⬇ Instalar
+        </button>
+      </div>
+    </header>
+
+    <!-- Toast Notification Mount Point -->
+    <div id="toast-mount-point"></div>
+
+    <!-- Dynamic View Mount Point -->
+    <main id="view-mount-point" role="main"></main>
+
+    <!-- Fixed Bottom Navigation (Requirement 26) -->
+    <nav class="bottom-nav" aria-label="Navegación principal">
+      <button class="nav-item-btn active" data-view="home" id="nav-btn-home" aria-label="Inicio">
+        <span style="font-size: 1.25rem;">🏠</span>
+        <span>Inicio</span>
+      </button>
+
+      <button class="nav-item-btn" data-view="remote" id="nav-btn-remote" aria-label="Controles">
+        <span style="font-size: 1.25rem;">📺</span>
+        <span>Controles</span>
+      </button>
+
+      <button class="nav-item-btn" data-view="favorites" id="nav-btn-favorites" aria-label="Favoritos">
+        <span style="font-size: 1.25rem;">⭐</span>
+        <span>Favoritos</span>
+      </button>
+
+      <button class="nav-item-btn" data-view="settings" id="nav-btn-settings" aria-label="Ajustes">
+        <span style="font-size: 1.25rem;">⚙</span>
+        <span>Ajustes</span>
+      </button>
+    </nav>
+
+  </div>
+
+  <!-- Bootstrap 5 Bundle JS -->
+  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+  <!-- Main ES Module Application Entrypoint -->
+  <script type="module" src="./app.js"></script>
+
+</body>
+</html>
