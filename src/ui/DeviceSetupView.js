@@ -41,9 +41,13 @@ export class DeviceSetupView {
         contentHtml = this._renderStep3Testing();
         break;
       case 4:
-        contentHtml = this.testResult?.success
-          ? this._renderStep4Success()
-          : this._renderStep4Failure();
+        if (this.testResult?.success) {
+          contentHtml = this._renderStep4Success();
+        } else if (this.testResult?.errorType === 'cors_restriction' || this.testResult?.networkStatus === 'cors_blocked') {
+          contentHtml = this._renderStep4CorsBlocked();
+        } else {
+          contentHtml = this._renderStep4Failure();
+        }
         break;
       default:
         contentHtml = this._renderStep1Brand();
@@ -277,7 +281,74 @@ export class DeviceSetupView {
     `;
   }
 
-  // 4B. Pantalla de Prueba Fallida (Requisito 6)
+  // 4B. Pantalla de Prueba con Bloqueo CORS (Requisitos 3, 5, 17, 19)
+  _renderStep4CorsBlocked() {
+    const ip = this.formData.ip;
+    const port = this.formData.port;
+
+    return `
+      <div style="text-align: center; padding-top: 10px;">
+        <div style="width: 52px; height: 52px; border-radius: var(--radius-full); background: rgba(59, 130, 246, 0.12); border: 1px solid rgba(59, 130, 246, 0.3); color: var(--accent); display: flex; align-items: center; justify-content: center; margin: 0 auto 14px;">
+          ${renderIcon('wifi', 26)}
+        </div>
+
+        <div class="view-title" style="margin-bottom: 4px;">Alcanzable • Bloqueado por CORS</div>
+        <p style="font-size: 0.76rem; color: var(--text-secondary); max-width: 320px; margin: 0 auto 18px; line-height: 1.45;">
+          El televisor responde en la red, pero el navegador bloqueó la lectura de la respuesta ECP debido a restricciones de seguridad (CORS).
+        </p>
+
+        <!-- Technical Matrix matching User Requirement 19 -->
+        <div style="background: var(--bg-surface); border: 1px solid var(--border-hairline); border-radius: var(--radius-lg); padding: 16px; text-align: left; margin-bottom: 18px; font-size: 0.74rem;">
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Destino:</span>
+            <span style="font-family: monospace; color: var(--text-primary);">${ip}:${port}</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Network (Wi-Fi):</span>
+            <span style="color: var(--status-connected); font-weight: 600;">PASS (Alcanzable)</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">ECP (Port ${port}):</span>
+            <span style="color: var(--status-connected); font-weight: 600;">PASS (Activo)</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">JavaScript access:</span>
+            <strong style="color: #f87171;">BLOCKED BY CORS</strong>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0; border-bottom: 1px solid var(--border-hairline);">
+            <span style="color: var(--text-secondary);">Commands:</span>
+            <span style="color: var(--status-connecting); font-weight: 600;">NOT VERIFIED</span>
+          </div>
+
+          <div style="display: flex; justify-content: space-between; padding: 6px 0;">
+            <span style="color: var(--text-secondary);">Power state:</span>
+            <span style="color: var(--text-muted);">UNKNOWN (Sin simular)</span>
+          </div>
+        </div>
+
+        <!-- Technical explanation note -->
+        <div style="padding: 10px 12px; background: rgba(59, 130, 246, 0.07); border-left: 3px solid var(--accent); border-radius: 4px; font-size: 0.70rem; color: var(--text-secondary); text-align: left; margin-bottom: 20px; line-height: 1.4;">
+          Safari en la barra de URL puede abrir <code style="color: var(--accent);">http://${ip}:${port}/query/device-info</code> porque la navegación de documento no aplica CORS. Sin embargo, el JavaScript de la PWA no tiene permiso para leer los datos del XML porque Roku no emite la cabecera <code>Access-Control-Allow-Origin</code>.
+        </div>
+
+        <div style="display: flex; gap: 8px;">
+          <button class="btn-clean btn-clean-secondary" id="btn-cors-cancel" style="flex: 1;">
+            Cancelar
+          </button>
+          <button class="btn-clean btn-clean-primary" id="btn-cors-add" style="flex: 1.6;">
+            ${renderIcon('plus', 16)}
+            <span>Guardar configurado</span>
+          </button>
+        </div>
+      </div>
+    `;
+  }
+
+  // 4C. Pantalla de Prueba Fallida (Requisito 6)
   _renderStep4Failure() {
     const res = this.testResult;
     const message = res?.message || 'No se obtuvo respuesta del televisor.';
@@ -410,7 +481,41 @@ export class DeviceSetupView {
       this.app.navigateTo('home');
     });
 
-    // Step 4B: Failure
+    // Step 4B: CORS Blocked Actions
+    container.querySelector('#btn-cors-cancel')?.addEventListener('click', () => {
+      this.app.navigateTo('home');
+    });
+
+    container.querySelector('#btn-cors-add')?.addEventListener('click', () => {
+      const devData = {
+        name: this.formData.name || `${this.formData.brand.toUpperCase()} TV`,
+        brand: this.formData.brand,
+        vendorName: this.formData.brand === 'roku' ? 'RCA' : '',
+        ip: this.formData.ip,
+        port: this.formData.port,
+        model: this.formData.model || 'Smart TV',
+        modelNumber: '',
+        softwareVersion: '',
+        softwareBuild: '',
+        networkType: 'wifi',
+        wifiMac: '',
+        powerMode: 'Unknown',
+        supportsTvPowerControl: true,
+        supportsAudioVolumeControl: true,
+        supportsFindRemote: false,
+        isTv: true,
+        networkStatus: 'cors_blocked',
+        powerStatus: 'unknown'
+      };
+
+      const added = DeviceManager.addDevice(devData);
+      DeviceManager.setActiveDevice(added.id);
+
+      this.app.showToast('Dispositivo guardado como configurado', 'info');
+      this.app.navigateTo('home');
+    });
+
+    // Step 4C: Failure
     container.querySelector('#btn-failure-cancel')?.addEventListener('click', () => {
       this.app.navigateTo('home');
     });

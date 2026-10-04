@@ -56,20 +56,32 @@ export class CommandManager {
 
     // Record telemetry on driver
     driver.lastCommand = commandName;
-    driver.lastCommandResult = result.success ? 'Success' : 'Failed';
+    if (result.commandConfirmed) {
+      driver.lastCommandResult = 'Confirmed (HTTP 200)';
+    } else if (result.commandSent && !result.commandConfirmed) {
+      driver.lastCommandResult = 'Sent (Unconfirmed)';
+    } else {
+      driver.lastCommandResult = result.success ? 'Success' : 'Failed';
+    }
     driver.lastChecked = new Date();
 
-    // If command failed due to unreachability, update runtime state
-    if (!result.success && (result.state === 'offline' || result.state === 'unreachable')) {
+    // Update runtime state strictly without false claims
+    if (result.commandConfirmed) {
+      DeviceManager.updateDeviceRuntimeState(driver.id, {
+        networkStatus: 'online',
+        lastChecked: new Date()
+      });
+    } else if (result.commandSent) {
+      DeviceManager.updateDeviceRuntimeState(driver.id, {
+        networkStatus: 'cors_blocked',
+        lastChecked: new Date(),
+        details: 'Command sent, response unconfirmed by browser CORS'
+      });
+    } else if (!result.success && (result.state === 'offline' || result.state === 'unreachable')) {
       DeviceManager.updateDeviceRuntimeState(driver.id, {
         networkStatus: 'offline',
         lastChecked: new Date(),
         details: result.message || 'No response to command'
-      });
-    } else if (result.success) {
-      DeviceManager.updateDeviceRuntimeState(driver.id, {
-        networkStatus: 'online',
-        lastChecked: new Date()
       });
     }
 

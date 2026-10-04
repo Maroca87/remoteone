@@ -75,7 +75,7 @@ export class RokuDriver extends BaseDriver {
   async verifyReachable() {
     const config = this.getConnectionConfig();
     if (config.demoMode) {
-      return { online: true, status: 'online', message: 'Demo simulation' };
+      return { online: true, status: 'online', reachable: true, browserReadable: true, message: 'Demo simulation' };
     }
 
     const endpoint = '/query/device-info';
@@ -90,27 +90,55 @@ export class RokuDriver extends BaseDriver {
         const parsed = NetworkUtils.parseRokuDeviceInfoXml(xml);
         this.rawDeviceInfo = parsed;
         this._applyParsedInfo(parsed);
-        return { online: true, status: 'online', httpStatus: res.status, message: 'Responded on port 8060' };
+        return {
+          online: true,
+          status: 'online',
+          reachable: true,
+          browserReadable: true,
+          httpStatus: res.status,
+          message: 'Responded on port 8060'
+        };
       } else {
-        return { online: false, status: 'offline', httpStatus: res.status, message: `HTTP ${res.status}` };
+        return {
+          online: false,
+          status: 'offline',
+          reachable: true,
+          browserReadable: true,
+          httpStatus: res.status,
+          message: `HTTP ${res.status}`
+        };
       }
     } catch (err) {
-      // In case CORS blocked reading GET body, probe connection to port 8060
-      try {
-        await NetworkUtils.fetchWithTimeout(`${this.getBaseUrl()}/`, { method: 'GET', mode: 'no-cors' }, 1800);
-        this.lastHttpStatus = 200;
-        return { online: true, status: 'online', message: 'Responded on port 8060' };
-      } catch (pingErr) {
-        this.lastHttpStatus = pingErr.name === 'AbortError' ? 'Timeout' : 'Offline';
-        return { online: false, status: 'offline', message: 'No response from device' };
+      if (err.name === 'AbortError') {
+        this.lastHttpStatus = 'Timeout';
+        return {
+          online: false,
+          status: 'offline',
+          reachable: false,
+          browserReadable: false,
+          message: 'Timeout: No response on port 8060'
+        };
       }
+
+      // If browser blocked reading response due to CORS/origin policies:
+      // DO NOT say Roku is offline! Roku is reachable, but JS access to response is blocked.
+      this.lastHttpStatus = 'CORS Blocked';
+      return {
+        online: false,
+        status: 'cors_blocked',
+        reachable: true,
+        browserReadable: false,
+        browserBlocked: true,
+        message: 'Roku reachable, but browser access to ECP response is blocked by CORS'
+      };
     }
   }
 
   /**
    * Determines real power state from device-info power-mode.
    * Only returns 'on' if power-mode is 'PowerOn', 'standby' if 'DisplayOff',
-   * 'off' if 'PowerOff', otherwise 'unknown'.
+   * 'off' if 'PowerOff', otherwise strictly 'unknown'.
+   * Never assumes or simulates power state.
    */
   async getPowerState() {
     const config = this.getConnectionConfig();
@@ -121,18 +149,6 @@ export class RokuDriver extends BaseDriver {
       if (pm === 'poweron') return 'on';
       if (pm === 'displayoff' || pm === 'headless') return 'standby';
       if (pm === 'poweroff') return 'off';
-    }
-
-    try {
-      const info = await this.getDeviceInfo();
-      if (info && info.powerMode) {
-        const pm = info.powerMode.toLowerCase();
-        if (pm === 'poweron') return 'on';
-        if (pm === 'displayoff' || pm === 'headless') return 'standby';
-        if (pm === 'poweroff') return 'off';
-      }
-    } catch (e) {
-      // Unreachable
     }
 
     return 'unknown';
@@ -299,8 +315,10 @@ export class RokuDriver extends BaseDriver {
           networkStatus: 'offline',
           powerStatus: 'unknown',
           httpStatus: 'Timeout',
-          errorType: 'no_response',
-          message: 'No response from device (tiempo de espera agotado).'
+          errorType: 'timeout',
+          reachable: false,
+          browserReadable: false,
+          message: 'Tiempo de espera agotado al conectar con el puerto 8060.'
         };
       }
 
@@ -308,22 +326,29 @@ export class RokuDriver extends BaseDriver {
         this.lastHttpStatus = 'Blocked';
         return {
           success: false,
-          networkStatus: 'unreachable',
+          networkStatus: 'blocked',
           powerStatus: 'unknown',
           httpStatus: 'Blocked',
-          errorType: 'browser_blocked',
-          message: 'Communication blocked by browser (restricción HTTPS a HTTP mixto). Abre la app vía HTTP local.'
+          errorType: 'mixed_content',
+          reachable: 'unknown',
+          browserReadable: false,
+          message: 'Bloqueado por restricción de contenido mixto (página HTTPS solicitando HTTP LAN).'
         };
       }
 
-      this.lastHttpStatus = 'Failed';
+      // TypeError / CORS restriction:
+      // Roku is REACHABLE at network level, but browser JS cannot read the XML response.
+      this.lastHttpStatus = 'CORS Blocked';
       return {
         success: false,
-        networkStatus: 'offline',
+        networkStatus: 'cors_blocked',
         powerStatus: 'unknown',
-        httpStatus: 'Failed',
-        errorType: 'no_response',
-        message: 'No response from device. Verifica que el Roku esté encendido y en la misma red Wi-Fi.'
+        httpStatus: 'CORS Blocked',
+        errorType: 'cors_restriction',
+        reachable: true,
+        browserReadable: false,
+        browserBlocked: true,
+        message: 'Roku is reachable, but browser access to the ECP response is blocked by CORS.'
       };
     }
   }
@@ -346,8 +371,10 @@ export class RokuDriver extends BaseDriver {
   }
 
   /**
-   * Internal dispatcher for keypress, keydown, keyup, launch
-   * Sends real POST /keypress/<KEY> without body according to Roku ECP (Requirement 7, 8, 9).
+   * Internal dispatcher for keypress, keydown, keyup, launch.
+   * Sends real POST /keypress/<KEY> without body according to Roku ECP specification.
+   * Strictly separates "Command sent" from "Command confirmed".
+   * Never marks opaque responses as "Command successful".
    */
   async _sendCommandInternal(type, keyOrParam) {
     const config = this.getConnectionConfig();
@@ -358,84 +385,83 @@ export class RokuDriver extends BaseDriver {
     // Demo Mode handling
     if (config.demoMode) {
       Logger.info(`[DEMO] Comando ejecutado: ${type}/${keyOrParam} en Roku (${this.name})`);
-      this.lastCommandResult = 'Success';
+      this.lastCommandResult = 'Confirmed (Demo)';
       this.lastHttpStatus = 200;
-      return { success: true, mode: 'demo', message: 'Command successful', httpStatus: 200 };
+      return { success: true, mode: 'demo', commandSent: true, commandConfirmed: true, message: 'Command successful (demo)', httpStatus: 200 };
     }
 
     // Direct PWA Mode (Priority 1: iPhone -> Wi-Fi -> Roku :8060)
     try {
-      let res;
-      try {
-        res = await NetworkUtils.fetchWithTimeout(targetUrl, { method: 'POST' }, 2500);
-      } catch (fetchErr) {
-        // If standard fetch threw TypeError in browser due to lack of CORS response headers,
-        // use mode: 'no-cors' so browser sends the raw HTTP POST to port 8060 without blocking
-        if (fetchErr.name !== 'AbortError' && (!window.location || window.location.protocol !== 'https:')) {
-          res = await NetworkUtils.fetchWithTimeout(targetUrl, { method: 'POST', mode: 'no-cors' }, 2500);
-        } else {
-          throw fetchErr;
-        }
-      }
+      const res = await NetworkUtils.fetchWithTimeout(targetUrl, { method: 'POST' }, 2500);
+      this.lastHttpStatus = res.status;
 
-      const isSuccessful = res.ok || res.type === 'opaque';
-      this.lastHttpStatus = res.status || 200;
-
-      if (isSuccessful) {
+      if (res.ok) {
         this.status = 'Online';
-        this.lastCommandResult = 'Success';
-        Logger.success(`Comando ${keyOrParam} transmitido a Roku (${this.ip}:8060)`);
+        this.lastCommandResult = 'Confirmed (HTTP 200)';
+        Logger.success(`Comando ${keyOrParam} confirmado por Roku (${this.ip}:8060)`);
         StorageManager.markCommandTested('roku', keyOrParam, true);
         return {
           success: true,
           mode: 'direct',
+          commandSent: true,
+          commandConfirmed: true,
           message: 'Command successful',
-          httpStatus: this.lastHttpStatus
+          httpStatus: res.status
         };
       } else {
         this.lastCommandResult = 'Failed';
         return {
           success: false,
-          state: 'failed',
+          mode: 'direct',
+          commandSent: true,
+          commandConfirmed: false,
           message: 'Command failed',
           httpStatus: res.status
         };
       }
-    } catch (directErr) {
-      this.status = 'Offline';
-      this.lastCommandResult = 'Failed';
-
-      if (directErr.name === 'AbortError') {
+    } catch (fetchErr) {
+      if (fetchErr.name === 'AbortError') {
         this.lastHttpStatus = 'Timeout';
+        this.lastCommandResult = 'Timeout';
         return {
           success: false,
           state: 'offline',
-          message: 'Device unavailable',
-          technical: 'Timeout al conectar con el puerto 8060'
+          commandSent: false,
+          commandConfirmed: false,
+          message: 'Device unavailable (Timeout)',
+          httpStatus: 'Timeout'
         };
       }
 
       if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
         this.lastHttpStatus = 'Blocked';
+        this.lastCommandResult = 'Blocked';
         return {
           success: false,
           state: 'blocked',
+          commandSent: false,
+          commandConfirmed: false,
           message: 'Browser blocked direct communication (HTTPS Mixed Content restriction)',
-          technical: 'El navegador bloqueó la conexión HTTP desde un origen HTTPS'
+          httpStatus: 'Blocked'
         };
       }
 
-      // Check if Bridge was explicitly configured as optional fallback
-      if (config.mode === 'bridge' && config.bridgeUrl) {
-        return this._sendCommandViaBridge(type, keyOrParam, config.bridgeUrl);
-      }
+      // If standard fetch threw TypeError due to missing CORS headers on response:
+      // The HTTP POST packet was dispatched by the browser to the TV socket,
+      // but browser WebKit refuses to expose the response status to JavaScript.
+      // Strictly mark as "Sent (Unconfirmed)" - NEVER "Command successful"!
+      this.lastHttpStatus = 'Unconfirmed';
+      this.lastCommandResult = 'Sent (Unconfirmed)';
+      Logger.warn(`Comando ${keyOrParam} transmitido a ${this.ip}:8060 pero la respuesta fue bloqueada por CORS del navegador.`);
 
-      this.lastHttpStatus = 'Offline';
       return {
-        success: false,
-        state: 'offline',
-        message: 'Device unavailable',
-        technical: directErr.message || 'Sin respuesta del dispositivo'
+        success: false, // NOT marked as verified success
+        state: 'unconfirmed',
+        commandSent: true,
+        commandConfirmed: false,
+        message: 'Command sent, but confirmation blocked by browser CORS',
+        httpStatus: 'Unconfirmed',
+        technical: 'Roku ECP does not provide Access-Control-Allow-Origin headers; response cannot be verified in browser'
       };
     }
   }

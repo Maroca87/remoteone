@@ -103,6 +103,10 @@ export class HomeView {
       netDotClass = 'connected';
       netLabel = 'Online';
       netColor = 'var(--status-connected)';
+    } else if (networkStatus === 'cors_blocked') {
+      netDotClass = 'connecting';
+      netLabel = 'Alcanzable (CORS Blocked)';
+      netColor = 'var(--status-connecting)';
     } else if (networkStatus === 'offline') {
       netDotClass = 'disconnected';
       netLabel = 'Offline';
@@ -121,14 +125,14 @@ export class HomeView {
       netColor = 'var(--text-muted)';
     }
 
-    // Power Status formatting
+    // Power Status formatting: strictly unverified unless protocol confirms it
     let powerLabel = 'Energía desconocida';
     if (powerStatus === 'on') {
-      powerLabel = 'Encendido';
+      powerLabel = 'PowerOn';
     } else if (powerStatus === 'standby') {
       powerLabel = 'Standby';
     } else if (powerStatus === 'off') {
-      powerLabel = 'Apagado';
+      powerLabel = 'PowerOff';
     } else if (powerStatus === 'unsupported') {
       powerLabel = 'Energía no disponible';
     }
@@ -418,8 +422,8 @@ export class HomeView {
       } else {
         // No devices found or browser multicast limitation
         progressArea.style.background = 'var(--bg-surface)';
-        statusText.textContent = 'Búsqueda completada';
-        subText.textContent = 'No se encontraron dispositivos automáticamente. Los navegadores móviles restringen paquetes UDP multicast. Puedes agregar tu televisor introduciendo su IP:';
+        statusText.textContent = 'Automatic discovery requires native network access';
+        subText.textContent = 'Los navegadores web no tienen acceso a sockets UDP multicast para emitir paquetes SSDP (239.255.255.250:1900). Se requiere la capa de red nativa para descubrir dispositivos automáticamente sin PC. Puedes agregar tu televisor introduciendo su IP:';
 
         resultsContainer.style.display = 'block';
         resultsContainer.innerHTML = `

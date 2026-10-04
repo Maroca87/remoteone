@@ -224,13 +224,13 @@ export class SettingsView {
             </div>
           </div>
 
-          <!-- Option 3: Bridge Local (Opcional) -->
+          <!-- Option 3: Intermediario Bridge Local (Opcional) -->
           <div class="mode-card ${settings.connectionMode === 'bridge' ? 'active' : ''}" data-mode="bridge">
             <div class="mode-radio-circle"></div>
             <div>
-              <div class="mode-card-title">Bridge local (Opcional)</div>
+              <div class="mode-card-title">Intermediario Bridge local (Opcional)</div>
               <div class="mode-card-desc">
-                Servidor opcional en tu red local (PC o Mac) para descubrimiento SSDP completo y lectura de XML.
+                Local Bridge es un servicio opcional que se ejecuta en otro dispositivo de la red local y actúa como intermediario cuando el navegador no puede comunicarse directamente con el TV.
               </div>
             </div>
           </div>
@@ -239,16 +239,16 @@ export class SettingsView {
         <!-- Bridge Configuration (Only shown when configured or bridge mode) -->
         <div id="bridge-config-panel" style="padding: 14px; background: var(--bg-surface-elevated); border: 1px solid var(--border-hairline); border-radius: var(--radius-md); margin-top: 12px;">
           <label style="font-size: 0.74rem; font-weight: 600; color: var(--text-secondary); display: block; margin-bottom: 4px;">
-            Dirección LAN del Bridge:
+            Dirección LAN del intermediario:
           </label>
           <div style="display: flex; gap: 8px;">
-            <input type="text" id="input-bridge-lan-url" class="text-input-field" placeholder="http://192.168.1.10:3000" value="${settings.bridgeUrl || ''}" style="flex: 1;" />
+            <input type="text" id="input-bridge-lan-url" class="text-input-field" placeholder="http://192.168.100.50:3000" value="${settings.bridgeUrl || ''}" style="flex: 1;" />
             <button class="btn-clean btn-clean-secondary" id="btn-test-bridge-action" style="width: auto; padding: 0 14px; font-size: 0.76rem;">
               Probar
             </button>
           </div>
           <div class="input-helper-text">
-            Introduce la dirección IP local de la computadora donde se ejecuta el Bridge. No uses <code>localhost</code> si abres la app desde un teléfono.
+            Introduce la dirección IP local del equipo donde se ejecuta el intermediario (ej. http://192.168.100.x:3000). No uses <code>localhost</code> desde el teléfono, ya que localhost en el teléfono apunta al propio teléfono.
           </div>
           <div id="bridge-test-feedback" style="font-size: 0.72rem; margin-top: 6px;"></div>
         </div>

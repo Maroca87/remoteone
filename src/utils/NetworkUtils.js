@@ -178,4 +178,218 @@ export class NetworkUtils {
 
     return apps;
   }
+
+  /**
+   * Technical diagnostic probe for direct PWA fetch (GET).
+   * Strictly records request start, completion, HTTP status, headers, body,
+   * TypeError, CORS block, Mixed Content, and Local Network restrictions.
+   * Does NOT simulate success or conceal browser security errors.
+   * @param {string} targetUrl 
+   * @param {number} timeoutMs 
+   * @returns {Promise<Object>}
+   */
+  static async testDirectPwaFetch(targetUrl, timeoutMs = 4000) {
+    const startedAt = new Date();
+    const startTime = performance.now();
+    const runtime = NetworkUtils.getRuntimeContext();
+
+    const report = {
+      testType: 'GET (Direct PWA)',
+      targetUrl,
+      timestampStarted: startedAt.toISOString(),
+      timestampCompleted: null,
+      durationMs: null,
+      runtimeContext: runtime,
+      httpStatus: null,
+      statusText: null,
+      responseHeaders: {},
+      responseBody: null,
+      isOk: false,
+      javascriptError: null,
+      classification: null,
+      rokuReachable: 'UNKNOWN',
+      browserApiAccess: 'UNKNOWN',
+      verdict: ''
+    };
+
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const response = await fetch(targetUrl, {
+        method: 'GET',
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      report.durationMs = Math.round(performance.now() - startTime);
+      report.timestampCompleted = new Date().toISOString();
+      report.httpStatus = response.status;
+      report.statusText = response.statusText;
+      report.isOk = response.ok;
+
+      // Extract response headers if readable
+      try {
+        response.headers.forEach((value, key) => {
+          report.responseHeaders[key] = value;
+        });
+      } catch (hErr) {
+        report.responseHeaders = { error: 'Headers unreadable' };
+      }
+
+      // Read response body
+      try {
+        const text = await response.text();
+        report.responseBody = text;
+        report.rokuReachable = 'YES';
+        report.browserApiAccess = 'ALLOWED';
+        report.classification = 'SUCCESS_DIRECT_ACCESS';
+        report.verdict = 'Roku responded and browser JavaScript was permitted to read ECP XML.';
+      } catch (bodyErr) {
+        report.responseBody = null;
+        report.rokuReachable = 'YES';
+        report.browserApiAccess = 'BLOCKED_BODY_READ';
+        report.classification = 'CORS_BODY_RESTRICTION';
+        report.verdict = 'HTTP status received, but response body reading was blocked.';
+      }
+
+      return report;
+    } catch (err) {
+      clearTimeout(timer);
+      report.durationMs = Math.round(performance.now() - startTime);
+      report.timestampCompleted = new Date().toISOString();
+
+      report.javascriptError = {
+        name: err.name || 'Error',
+        message: err.message || String(err),
+        stack: err.stack || null
+      };
+
+      // Technical classification of the failure
+      if (err.name === 'AbortError') {
+        report.classification = 'TIMEOUT';
+        report.rokuReachable = 'NO_OR_SLOW';
+        report.browserApiAccess = 'TIMEOUT';
+        report.verdict = `Request timed out after ${timeoutMs}ms without response.`;
+      } else if (runtime.isHttps && targetUrl.startsWith('http:')) {
+        report.classification = 'MIXED_CONTENT_BLOCKED';
+        report.rokuReachable = 'UNKNOWN';
+        report.browserApiAccess = 'BLOCKED_BY_MIXED_CONTENT';
+        report.verdict = 'Browser strictly blocked HTTP request from an HTTPS page (Mixed Content security policy).';
+      } else if (err.name === 'TypeError' || err.message?.includes('fetch')) {
+        report.classification = 'CORS_OR_LOCAL_NETWORK_RESTRICTION';
+        report.rokuReachable = 'LIKELY_YES_AT_TCP_LEVEL';
+        report.browserApiAccess = 'BLOCKED';
+        report.verdict = 'Roku is reachable at network level, but browser JavaScript access to ECP response is BLOCKED by CORS (Roku does not send Access-Control-Allow-Origin headers).';
+      } else {
+        report.classification = 'NETWORK_ERROR';
+        report.rokuReachable = 'UNKNOWN';
+        report.browserApiAccess = 'BLOCKED';
+        report.verdict = `Network request failed: ${err.message}`;
+      }
+
+      return report;
+    }
+  }
+
+  /**
+   * Technical diagnostic probe for direct ECP command (POST /keypress/<KEY> without body).
+   * Explicitly separates "Command sent" from "Command confirmed".
+   * Never marks opaque responses as "Command successful".
+   * @param {string} targetUrl 
+   * @param {number} timeoutMs 
+   * @returns {Promise<Object>}
+   */
+  static async testDirectPwaPost(targetUrl, timeoutMs = 3500) {
+    const startedAt = new Date();
+    const startTime = performance.now();
+    const runtime = NetworkUtils.getRuntimeContext();
+
+    const report = {
+      testType: 'POST (Direct ECP Command)',
+      targetUrl,
+      timestampStarted: startedAt.toISOString(),
+      timestampCompleted: null,
+      durationMs: null,
+      runtimeContext: runtime,
+      standardFetch: {
+        attempted: true,
+        httpStatus: null,
+        error: null,
+        commandSent: false,
+        commandConfirmed: false
+      },
+      noCorsProbe: {
+        attempted: false,
+        responseType: null,
+        commandSent: false,
+        commandConfirmed: false,
+        note: 'no-cors mode only probes socket dispatch; it CANNOT confirm execution or read response'
+      },
+      verdict: ''
+    };
+
+    // 1. Attempt standard POST
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+
+    try {
+      const res = await fetch(targetUrl, {
+        method: 'POST',
+        signal: controller.signal
+      });
+      clearTimeout(timer);
+
+      report.durationMs = Math.round(performance.now() - startTime);
+      report.timestampCompleted = new Date().toISOString();
+      report.standardFetch.httpStatus = res.status;
+      report.standardFetch.commandSent = true;
+      report.standardFetch.commandConfirmed = res.ok;
+      report.verdict = res.ok ? 'Command sent and confirmed (HTTP 200)' : `Command sent, HTTP ${res.status}`;
+      return report;
+    } catch (err) {
+      clearTimeout(timer);
+      report.standardFetch.error = {
+        name: err.name,
+        message: err.message
+      };
+
+      if (err.name === 'AbortError') {
+        report.durationMs = Math.round(performance.now() - startTime);
+        report.timestampCompleted = new Date().toISOString();
+        report.verdict = 'Command timed out on port 8060';
+        return report;
+      }
+
+      // If standard fetch threw TypeError due to missing CORS headers on response:
+      // Test if no-cors allows socket dispatch
+      report.noCorsProbe.attempted = true;
+      const noCorsController = new AbortController();
+      const noCorsTimer = setTimeout(() => noCorsController.abort(), 2000);
+
+      try {
+        const noCorsRes = await fetch(targetUrl, {
+          method: 'POST',
+          mode: 'no-cors',
+          signal: noCorsController.signal
+        });
+        clearTimeout(noCorsTimer);
+        report.durationMs = Math.round(performance.now() - startTime);
+        report.timestampCompleted = new Date().toISOString();
+        report.noCorsProbe.responseType = noCorsRes.type; // 'opaque'
+        report.noCorsProbe.commandSent = true;
+        report.noCorsProbe.commandConfirmed = false; // Strictly false: cannot verify opaque response!
+        report.verdict = 'Command sent (unconfirmed): Browser dispatched POST to socket, but CORS prevented reading response confirmation.';
+      } catch (noCorsErr) {
+        clearTimeout(noCorsTimer);
+        report.durationMs = Math.round(performance.now() - startTime);
+        report.timestampCompleted = new Date().toISOString();
+        report.noCorsProbe.commandSent = false;
+        report.verdict = `Command failed to dispatch: ${noCorsErr.message}`;
+      }
+
+      return report;
+    }
+  }
 }
+

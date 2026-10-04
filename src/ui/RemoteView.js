@@ -301,8 +301,15 @@ export class RemoteView {
         const res = await CommandManager.executeCommand(cmd);
 
         if (!res.success) {
-          // Honest failure feedback
-          this.app.showToast(res.message || 'Comando fallido: Dispositivo no disponible', 'danger');
+          if (res.commandSent && !res.commandConfirmed) {
+            // Honest unconfirmed feedback: command packet was sent to the network socket, but browser cannot read confirmation
+            this.app.showToast(`Comando "${cmd}" emitido (sin confirmación por CORS)`, 'warning');
+          } else {
+            // Honest failure feedback
+            this.app.showToast(res.message || 'Comando no transmitido', 'danger');
+          }
+        } else {
+          this.app.showToast(`Comando "${cmd}" confirmado`, 'success');
         }
       });
     });
